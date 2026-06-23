@@ -1,0 +1,45 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+__pycache__/
+*.o
+*.d
+*.elf
+*.bin
+*.hex
+*.map
+*.su
+*.lst
+
+# Build artifacts
+build/
+dist/
+release/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python
+*.pyc
+*.pyo
+env/
+venv/
+.venv/
+
+# KiCad backups
+hardware/*-bak/
+hardware/*.kicad_pcb-bak
+hardware/*.sch-bak
+
+# OS
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# Keep the backup for reference but ignore by default
+# firmware/btt-custom/tft35_backup.bin
