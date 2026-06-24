@@ -5,6 +5,7 @@ LDFLAGS = -lSDL2 -lm
 SRC = main.c \
       ../firmware/btt-custom/src/User/gauge_ui.c \
       ../firmware/btt-custom/src/User/gauge_dial.c \
+      ../firmware/btt-custom/src/User/boot_screen.c \
       sim_ili9488_gfx.c \
       ../firmware/btt-custom/src/User/font_8x13.c \
       sdl_gfx.c \

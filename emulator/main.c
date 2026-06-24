@@ -7,6 +7,9 @@
 #include "gauge_ui.h"
 #include "gauge_dial.h"
 #include "os_timer.h"
+#include "../firmware/btt-custom/src/User/boot_screen.h"
+
+extern OS_COUNTER os_counter;
 
 int main(int argc, char *argv[]);
 
@@ -20,7 +23,7 @@ int main(int argc, char *argv[])
 {
     (void)argc; (void)argv;
 
-    printf("GSX-R1000 Gauge Simulator starting...\n");
+    printf("=== GSX-R1000 Gauge Simulator Starting ===\n");
     printf("Controls:\n");
     printf("  LEFT/RIGHT  - Change page\n");
     printf("  UP/DOWN     - Shift gear up/down\n");
@@ -30,16 +33,38 @@ int main(int argc, char *argv[])
     printf("  L           - Toggle logging (settings page)\n");
     printf("  ESC/Q       - Quit\n\n");
 
+    printf("[DEBUG] Initializing SDL_GFX...\n");
     SDL_GFX_Init();
+    printf("[DEBUG] SDL_GFX initialized, window created\n");
+    
+    printf("[DEBUG] Initializing SDL_Input...\n");
     SDL_Input_Init();
+    
+    printf("[DEBUG] Initializing SimData...\n");
     SimData_Init();
+    printf("[DEBUG] SimData initialized\n");
 
     // Initialize gauge UI
+    printf("[DEBUG] Initializing DIAL table...\n");
     DIAL_InitTable();
+    printf("[DEBUG] DIAL table initialized\n");
+    
+    // Run boot animation
+    printf("[DEBUG] Running boot animation...\n");
+    Boot_Animation();
+    printf("[DEBUG] Boot animation complete\n");
+    
+    printf("[DEBUG] Initializing Gauge UI...\n");
     Gauge_Init();
+    printf("[DEBUG] Gauge UI initialized\n");
+
+    // TEST MODE: Run for 10 seconds then exit
+    uint32_t testStartTime = 0;
+    uint8_t testMode = 1;
 
     uint8_t running = 1;
     uint8_t throttleHeld = 0;
+    uint32_t frameCount = 0;
 
     while (running) {
         SimKey key = SDL_Input_Poll();
@@ -49,9 +74,11 @@ int main(int argc, char *argv[])
         }
 
         if (SDL_Input_IsPressed(SIM_KEY_LEFT)) {
+            printf("[DEBUG] LEFT pressed - Prev page\n");
             Gauge_PrevPage();
         }
         if (SDL_Input_IsPressed(SIM_KEY_RIGHT)) {
+            printf("[DEBUG] RIGHT pressed - Next page\n");
             Gauge_NextPage();
         }
         if (SDL_Input_IsPressed(SIM_KEY_UP)) {
@@ -61,10 +88,11 @@ int main(int argc, char *argv[])
             SimData_ShiftDown();
         }
         if (SDL_Input_IsPressed(SIM_KEY_D)) {
-            Gauge_Press();  // Toggle detail mode on dashboard
+            printf("[DEBUG] D pressed - Toggle detail\n");
+            Gauge_Press();
         }
         if (SDL_Input_IsPressed(SIM_KEY_L)) {
-            Gauge_Press();  // Toggle logging on settings page
+            Gauge_Press();
         }
 
         // Throttle handling (space key)
@@ -74,7 +102,7 @@ int main(int argc, char *argv[])
 
         if (keystate[SDL_SCANCODE_C]) {
             SimData_ToggleClutch();
-            SDL_Delay(200);  // Debounce
+            SDL_Delay(200);
         }
 
         // Update simulation
@@ -86,13 +114,32 @@ int main(int argc, char *argv[])
         // Render
         SDL_GFX_Present();
 
+        frameCount++;
+        if (frameCount % 60 == 0) {
+            printf("[DEBUG] Frame %u, RPM=%u, Gear=%u, Page=%d\n", 
+                   frameCount, g_sdsData.rpm, g_sdsData.gearPos, Gauge_GetPage());
+        }
+
+        // Update firmware timer for boot animation etc.
+        os_counter.ms = SDL_GetTicks() - SDL_GFX_GetStartTime();
+
         // Frame rate limiting
         SDL_Delay(16);
+
+        // Test mode: exit after 30 seconds
+        if (testMode) {
+            if (testStartTime == 0) testStartTime = SDL_GetTicks();
+            if (SDL_GetTicks() - testStartTime > 30000) {
+                printf("[TEST] 30 seconds elapsed, exiting...\n");
+                running = 0;
+            }
+        }
     }
 
-    printf("Shutting down...\n");
+    printf("\n[DEBUG] Shutting down... (frames: %u)\n", frameCount);
     SDL_Input_Quit();
     SDL_GFX_Quit();
 
     return 0;
 }
+

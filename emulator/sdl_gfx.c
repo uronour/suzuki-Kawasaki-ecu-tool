@@ -19,7 +19,10 @@ void SDL_GFX_Init(void)
     g_window = SDL_CreateWindow("GSX-R1000 Gauge Simulator",
                                 SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                 LCD_WIDTH * 2, LCD_HEIGHT * 2,
-                                SDL_WINDOW_RESIZABLE);
+                                SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN | SDL_WINDOW_INPUT_FOCUS);
+    SDL_RaiseWindow(g_window);
+    SDL_SetWindowAlwaysOnTop(g_window, SDL_TRUE);
+    SDL_SetWindowAlwaysOnTop(g_window, SDL_FALSE);
     if (!g_window) {
         SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());
         exit(1);
@@ -47,6 +50,11 @@ void SDL_GFX_Init(void)
 
     SDL_RenderSetLogicalSize(g_renderer, LCD_WIDTH, LCD_HEIGHT);
     g_startTime = SDL_GetTicks();
+}
+
+uint32_t SDL_GFX_GetStartTime(void)
+{
+    return g_startTime;
 }
 
 void SDL_GFX_Quit(void)

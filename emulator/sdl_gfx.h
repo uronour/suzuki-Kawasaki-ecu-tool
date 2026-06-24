@@ -38,6 +38,7 @@ static inline SDL_Color RGB565_to_SDL(uint16_t c)
 
 void SDL_GFX_Init(void);
 void SDL_GFX_Quit(void);
+uint32_t SDL_GFX_GetStartTime(void);
 void SDL_GFX_Clear(uint16_t color);
 void SDL_GFX_Present(void);
 void SDL_GFX_DrawPixel(int16_t x, int16_t y, uint16_t color);

@@ -28,9 +28,19 @@
 
 #define PAGE_FOOTER_Y (LCD_HEIGHT - FONT_H - 4)
 
+#define SPEEDO_CX    340
+#define SPEEDO_CY    200
+#define SPEEDO_R     130
+#define SPEEDO_START 135
+#define SPEEDO_END   45
+#define SPEEDO_ARC_W 8
+#define SPEEDO_MAX   300
+
 static GaugePage g_currentPage = GAUGE_PAGE_DASHBOARD;
+static DashStyle g_dashStyle = DASH_STYLE_OEM;
 static uint32_t g_lastUpdate = 0;
 static uint32_t g_prevNeedleVal = 0xFFFFFFFF;
+static uint32_t g_prevSpeedVal = 0xFFFFFFFF;
 static uint32_t g_prevDig[4] = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};
 static uint8_t g_detailMode = 0;
 static char g_prevRpmStr[16] = {0};
@@ -51,6 +61,14 @@ static GaugeDial g_tach = {
   .startAngle = TACH_START, .endAngle = TACH_END,
   .minVal = 0, .maxVal = TACH_MAX,
   .arcWidth = TACH_ARC_W
+};
+
+static GaugeDial g_speedo = {
+  .cx = SPEEDO_CX, .cy = SPEEDO_CY,
+  .radius = SPEEDO_R,
+  .startAngle = SPEEDO_START, .endAngle = SPEEDO_END,
+  .minVal = 0, .maxVal = SPEEDO_MAX,
+  .arcWidth = SPEEDO_ARC_W
 };
 
 static void DigLabel(int idx, const char *label)
@@ -85,15 +103,27 @@ static void DrawTachoFace(void)
   GFX_DrawStringScaled(g_tach.cx - 36, g_tach.cy - 9, "GSX-R", RGB565(255, 40, 0), RGB565(30, 30, 30), 2);
 }
 
+static void DrawSpeedoFace(void)
+{
+  DIAL_DrawArcSweep(&g_speedo, SPEEDO_START, DIAL_AngleForValue(&g_speedo, 100), RGB565(0, 180, 0));
+  DIAL_DrawArcSweep(&g_speedo, DIAL_AngleForValue(&g_speedo, 100), DIAL_AngleForValue(&g_speedo, 180), RGB565(200, 180, 0));
+  DIAL_DrawArcSweep(&g_speedo, DIAL_AngleForValue(&g_speedo, 180), SPEEDO_END, RGB565(200, 0, 0));
+  DIAL_DrawTicks(&g_speedo, 20, 40, RGB565(180, 180, 180), RGB565(220, 220, 220));
+  DIAL_DrawCenterHub(&g_speedo, 12, RGB565(80, 80, 80));
+  GFX_DrawStringScaled(g_speedo.cx - 30, g_speedo.cy - 9, "MPH", RGB565(255, 40, 0), RGB565(30, 30, 30), 2);
+}
+
 void Gauge_Init(void)
 {
   DIAL_InitTable();
   LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, RGB565(30, 30, 30));
   g_currentPage = GAUGE_PAGE_DASHBOARD;
+  g_dashStyle = DASH_STYLE_OEM;
   g_prevNeedleVal = 0xFFFFFFFF;
   for (int i = 0; i < 4; i++) g_prevDig[i] = 0xFFFFFFFF;
 
   DrawTachoFace();
+  DrawSpeedoFace();
   DigLabel(0, "Coolant");
   DigLabel(1, "Speed");
   DigLabel(2, "Battery");
@@ -119,6 +149,11 @@ void Gauge_Update(void)
       DIAL_DrawNeedle(&g_tach, rpm, RGB565(255, 80, 0), RGB565(30, 30, 30), g_prevNeedleVal);
       g_prevNeedleVal = rpm;
 
+      uint32_t speedMph = (uint32_t)((unsigned long)g_sdsData.speed * 621371UL / 1000000UL);
+      if (speedMph > SPEEDO_MAX) speedMph = SPEEDO_MAX;
+      DIAL_DrawNeedle(&g_speedo, speedMph, RGB565(255, 80, 0), RGB565(30, 30, 30), g_prevSpeedVal);
+      g_prevSpeedVal = speedMph;
+
       char rpmStr[16];
       snprintf(rpmStr, sizeof(rpmStr), "%u RPM", g_sdsData.rpm);
       if (strcmp(rpmStr, g_prevRpmStr) != 0)
@@ -143,7 +178,6 @@ void Gauge_Update(void)
             RGB565(20, 20, 20), 4);
       }
 
-      uint32_t speedMph = (uint32_t)((unsigned long)g_sdsData.speed * 621371UL / 1000000UL);
       uint32_t dig[4] = { g_sdsData.coolantTemp, speedMph, g_sdsData.batteryVolt, g_sdsData.gearPos };
       const char *units[4] = { "C", "mph", "V", "" };
       for (int i = 0; i < 4; i++)
@@ -414,4 +448,19 @@ void Gauge_NextPage(void)
 void Gauge_PrevPage(void)
 {
   Gauge_SetPage((g_currentPage == 0) ? (GAUGE_PAGE_COUNT - 1) : (g_currentPage - 1));
+}
+
+void Gauge_SetDashStyle(DashStyle style)
+{
+  if (style < DASH_STYLE_COUNT)
+  {
+    g_dashStyle = style;
+    g_pageDirty = 1;
+    Gauge_Update();
+  }
+}
+
+DashStyle Gauge_GetDashStyle(void)
+{
+  return g_dashStyle;
 }

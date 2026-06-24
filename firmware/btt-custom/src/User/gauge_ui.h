@@ -18,7 +18,17 @@ typedef enum {
   GAUGE_PAGE_ABOUT,
 } GaugePage;
 
+typedef enum {
+  DASH_STYLE_OEM = 0,
+  DASH_STYLE_RACE,
+  DASH_STYLE_FLAT,
+  DASH_STYLE_NEO_RETRO,
+  DASH_STYLE_COUNT
+} DashStyle;
+
 void Gauge_Init(void);
+void Gauge_SetDashStyle(DashStyle style);
+DashStyle Gauge_GetDashStyle(void);
 void Gauge_Update(void);
 void Gauge_SetPage(GaugePage page);
 GaugePage Gauge_GetPage(void);

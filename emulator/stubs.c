@@ -19,7 +19,11 @@ uint32_t OS_GetTimeMs(void)
 
 void Delay_ms(uint32_t ms)
 {
-    SDL_Delay(ms);
+    uint32_t start = SDL_GetTicks();
+    while (SDL_GetTicks() - start < ms) {
+        SDL_Delay(1);
+        os_counter.ms = SDL_GetTicks() - g_startTime;
+    }
 }
 
 void OS_InitTimerMs(void)

@@ -38,7 +38,7 @@ void Boot_Animation(void)
   while (OS_GetTimeMs() - t0 < 1500)
   {
     uint32_t now = OS_GetTimeMs();
-    if (now - lastFrame < 16) continue;
+    if (now - lastFrame < 16) { Delay_ms(1); continue; }
     lastFrame = now;
 
     uint32_t progress = now - t0;
