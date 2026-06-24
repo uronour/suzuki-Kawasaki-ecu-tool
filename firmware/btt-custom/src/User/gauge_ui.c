@@ -421,8 +421,7 @@ void Gauge_Press(void)
     g_detailMode = !g_detailMode;
     if (g_detailMode)
     {
-      LCD_FillRect(10, 160, 290, 310, RGB565(20, 20, 20));
-      GFX_DrawStringScaled(15, 165, "MAP", RGB565(100, 100, 100), RGB565(20, 20, 20), 1);
+      GFX_DrawStringScaled(15, 165, "MAP", RGB565(100, 100, 100), RGB565(30, 30, 30), 1);
       GFX_DrawStringScaled(15, 185, "IAT", RGB565(100, 100, 100), RGB565(20, 20, 20), 1);
       GFX_DrawStringScaled(15, 205, "TPS", RGB565(100, 100, 100), RGB565(20, 20, 20), 1);
       GFX_DrawStringScaled(15, 225, "O2", RGB565(100, 100, 100), RGB565(20, 20, 20), 1);
