@@ -1,17 +1,11 @@
 #include <stdio.h>
+#include <string.h>
 #include "boot_screen.h"
 #include "ili9488_gfx.h"
 #include "gauge_dial.h"
 #include "os_timer.h"
 #include "delay.h"
 #include "lcd.h"
-
-static void DrawGSXRLogo(int16_t cx, int16_t cy)
-{
-  int16_t x = cx - 72;
-  int16_t y = cy - 18;
-  GFX_DrawStringScaled(x, y, "GSX-R", RGB565(255, 40, 0), COLOR_BLACK, 3);
-}
 
 static void DrawGSXRLogoCentered(GaugeDial *d)
 {
@@ -26,6 +20,8 @@ void Boot_Animation(void)
   DIAL_InitTable();
 
   uint32_t t0 = OS_GetTimeMs();
+  uint32_t lastFrame = t0;
+  uint32_t prevRpm = 0xFFFFFFFF;
 
   LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, COLOR_BLACK);
 
@@ -38,35 +34,48 @@ void Boot_Animation(void)
   DIAL_DrawTicks(&bootTach, 500, 2000, RGB565(120, 120, 120), RGB565(180, 180, 180));
   DIAL_DrawCenterHub(&bootTach, 12, RGB565(60, 60, 60));
   DrawGSXRLogoCentered(&bootTach);
-  GFX_DrawStringScaled(bootTach.cx - 50, bootTach.cy + 35, "0 RPM", RGB565(200, 200, 200), COLOR_BLACK, 2);
 
-  while (OS_GetTimeMs() - t0 < 1200)
+  while (OS_GetTimeMs() - t0 < 1500)
   {
-    uint32_t progress = OS_GetTimeMs() - t0;
+    uint32_t now = OS_GetTimeMs();
+    if (now - lastFrame < 16) continue;
+    lastFrame = now;
+
+    uint32_t progress = now - t0;
     uint32_t sweepRpm;
-    if (progress < 500)
+    if (progress < 600)
     {
-      sweepRpm = progress * 14000 / 500;
+      sweepRpm = progress * 14000 / 600;
     }
-    else if (progress < 1000)
+    else if (progress < 1200)
     {
-      sweepRpm = 14000 - (progress - 500) * 14000 / 500;
+      sweepRpm = 14000 - (progress - 600) * 14000 / 600;
     }
     else
     {
       sweepRpm = 0;
     }
 
-    DIAL_DrawNeedle(&bootTach, sweepRpm, RGB565(255, 80, 0), COLOR_BLACK, 0xFFFFFFFF);
-    char rpmStr[16];
-    snprintf(rpmStr, sizeof(rpmStr), "%u RPM", (unsigned)sweepRpm);
-    LCD_FillRect(bootTach.cx - 80, bootTach.cy - 40, bootTach.cx + 80, bootTach.cy + 80, COLOR_BLACK);
-    GFX_DrawStringScaled(bootTach.cx - 50, bootTach.cy + 35, rpmStr, RGB565(255, 255, 255), COLOR_BLACK, 2);
-    DrawGSXRLogoCentered(&bootTach);
-    Delay_ms(16);
+    if (sweepRpm != prevRpm)
+    {
+      DIAL_DrawNeedle(&bootTach, sweepRpm, RGB565(255, 80, 0), COLOR_BLACK, prevRpm);
+      prevRpm = sweepRpm;
+
+      char rpmStr[16];
+      snprintf(rpmStr, sizeof(rpmStr), "%u RPM", (unsigned)sweepRpm);
+      int16_t w = strlen(rpmStr) * 8 * 2;
+      LCD_FillRect(bootTach.cx - w/2 - 4, bootTach.cy + 30, bootTach.cx + w/2 + 4, bootTach.cy + 30 + 13*2 + 4, COLOR_BLACK);
+      GFX_DrawStringScaled(bootTach.cx - w/2, bootTach.cy + 35, rpmStr, RGB565(255, 255, 255), COLOR_BLACK, 2);
+    }
   }
 
-  DIAL_DrawNeedle(&bootTach, 0, RGB565(255, 80, 0), COLOR_BLACK, 0xFFFFFFFF);
+  if (prevRpm != 0)
+  {
+    DIAL_DrawNeedle(&bootTach, 0, RGB565(255, 80, 0), COLOR_BLACK, prevRpm);
+    LCD_FillRect(bootTach.cx - 40, bootTach.cy + 30, bootTach.cx + 40, bootTach.cy + 30 + 13*2 + 4, COLOR_BLACK);
+    GFX_DrawStringScaled(bootTach.cx - 30, bootTach.cy + 35, "0 RPM", RGB565(200, 200, 200), COLOR_BLACK, 2);
+  }
+
   GFX_DrawStringScaled(140, 270, "Made by Uronour", RGB565(100, 100, 100), COLOR_BLACK, 1);
   Delay_ms(300);
 }

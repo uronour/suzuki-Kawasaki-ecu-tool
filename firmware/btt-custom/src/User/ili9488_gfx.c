@@ -111,6 +111,16 @@ void GFX_DrawStringCenter(int16_t y, const char *str, uint16_t color, uint16_t b
   GFX_DrawString(x, y, str, color, bg);
 }
 
+void GFX_DrawStringCenterScaled(int16_t y, const char *str, uint16_t color, uint16_t bg, uint8_t scale)
+{
+  int16_t len = 0;
+  const char *p = str;
+  while (*p++) len++;
+  int16_t x = (LCD_WIDTH - len * FONT_STEP * scale) / 2;
+  if (x < 0) x = 0;
+  GFX_DrawStringScaled(x, y, str, color, bg, scale);
+}
+
 void GFX_DrawInt(int16_t x, int16_t y, int32_t val, uint8_t digits, uint16_t color, uint16_t bg)
 {
   char buf[16];

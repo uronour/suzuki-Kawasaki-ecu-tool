@@ -1,6 +1,6 @@
 # Suzuki SDS ECU Tool — 2004 GSX-R1000
 
-> **Status: ONGOING — awaiting parts (L9637D, HC-05) for K-Line and BT testing**
+> **Status: FIRMWARE COMPLETE — awaiting parts (L9637D, HC-05) for K-Line and BT testing**
 >
 > Custom diagnostic tool for the Suzuki SDS ECU using a BigTreeTech TFT35 V3.0 as a standalone display/controller, with KWP2000 over K-Line and Bluetooth SPP streaming.
 
@@ -13,6 +13,7 @@ This project replaces the Suzuki factory dealer tool with a custom-built diagnos
 **Target ECU:** Denso 32920-18G20 (2004 GSX-R1000 SDS)
 **Protocol:** KWP2000 (ISO 14230) over K-Line (ISO 9141-2), 10400 baud 8N1
 **Controller:** STM32F207VCT6 (on TFT35 V3.0)
+**Display:** 480×320 ILI9488 / NT35310, 60fps smooth needle rendering
 
 ## Hardware
 
@@ -60,11 +61,12 @@ A stripped-down firmware based on the BTT TFT35 source, rewritten for SDS diagno
 | `SDSProtocol.c/h` | KWP2000 protocol engine — start/stop communication, sensor polling, keep-alive, DTC read/clear, dealer mode |
 | `kline_task.c/h` | K-Line hardware driver — USART3, fast init wakeup (1000ms HIGH → 25ms LOW → 25ms HIGH), byte-level TX/RX |
 | `bt_stream.c/h` | Bluetooth SPP streaming via USART1 (WiFi port) — JSON sensor data output |
-| `gauge_ui.c/h` | Main gauge UI — dark grey carbon-fibre background, analog tachometer (270° sweep, green/yellow/red zones), 4 digital readouts, smart redraw (no flicker) |
-| `gauge_dial.c/h` | Analog gauge dial drawing — arc sweep, ticks, needle (Bresenham line), centre hub, lookup-table sin/cos |
-| `ili9488_gfx.c/h` | LCD graphics primitives — scaled font rendering (GFX_DrawCharScaled, GFX_DrawStringScaled), coloured arc drawing, backlight control |
-| `encoder.c/h` | Polled quadrature rotary encoder driver with debounce — rotate for page nav, press placeholder for detail mode |
+| `gauge_ui.c/h` | Main gauge UI — dark theme, analog tachometer (270° sweep, green/yellow/red zones), gear indicator (N/1-6), 4 digital readouts, 7-page detail overlay, **dirty-flag rendering @ 60fps** |
+| `gauge_dial.c/h` | Analog gauge dial drawing — arc sweep, ticks, **tapered needle w/ shadow (Bresenham)**, centre hub, lookup-table sin/cos |
+| `ili9488_gfx.c/h` | LCD graphics primitives — scaled font rendering, coloured arc drawing, backlight control |
+| `encoder.c/h` | Polled quadrature rotary encoder driver with debounce — rotate for page nav, press for detail/log toggle |
 | `font_8x13.h` | 8x13 monospace font glyph table |
+| `boot_screen.c/h` | Startup animation — needle sweep 0→14k→0 RPM over 1.5s, frame-limited @ 16ms |
 
 **Key integration points:**
 - `OS_InitTimerMs()` must be called before any `Gauge_Update()` — timer starts the display refresh cycle

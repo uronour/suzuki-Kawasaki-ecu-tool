@@ -33,6 +33,17 @@ static uint32_t g_lastUpdate = 0;
 static uint32_t g_prevNeedleVal = 0xFFFFFFFF;
 static uint32_t g_prevDig[4] = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};
 static uint8_t g_detailMode = 0;
+static char g_prevRpmStr[16] = {0};
+static uint32_t g_prevDetailVals[8] = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};
+static uint8_t g_detailDrawn = 0;
+static uint8_t g_prevGear = 0xFF;
+
+static uint8_t g_pageDirty = 1;
+static const char *gearStr[] = { "N", "1", "2", "3", "4", "5", "6" };
+static uint32_t g_prevSensors[4] = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};
+static uint16_t g_prevDtcCount = 0xFFFF;
+static uint8_t g_prevSettings[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+static uint8_t g_aboutDrawn = 0;
 
 static GaugeDial g_tach = {
   .cx = TACH_CX, .cy = TACH_CY,
@@ -51,7 +62,9 @@ static void DigLabel(int idx, const char *label)
 static void DigValue(int idx, const char *text, uint16_t color)
 {
   int16_t y = DIG_VAL_Y + idx * DIG_STEP;
-  LCD_FillRect(DIG_X - 4, y - 4, LCD_WIDTH - 4, y + FONT_H * DIG_SCALE, COLOR_BLACK);
+  int16_t w = strlen(text) * FONT_STEP * DIG_SCALE;
+  int16_t h = FONT_H * DIG_SCALE;
+  LCD_FillRect(DIG_X - 4, y - 4, DIG_X + w + 4, y + h + 4, COLOR_BLACK);
   GFX_DrawStringScaled(DIG_X, y, text, color, COLOR_BLACK, DIG_SCALE);
 }
 
@@ -93,7 +106,7 @@ void Gauge_Init(void)
 
 void Gauge_Update(void)
 {
-  if (OS_GetTimeMs() - g_lastUpdate < 80)
+  if (OS_GetTimeMs() - g_lastUpdate < 16)
     return;
   g_lastUpdate = OS_GetTimeMs();
 
@@ -108,7 +121,27 @@ void Gauge_Update(void)
 
       char rpmStr[16];
       snprintf(rpmStr, sizeof(rpmStr), "%u RPM", g_sdsData.rpm);
-      GFX_DrawStringScaled(TACH_CX - 50, TACH_CY + 35, rpmStr, COLOR_WHITE, RGB565(30, 30, 30), 2);
+      if (strcmp(rpmStr, g_prevRpmStr) != 0)
+      {
+        GFX_DrawStringScaled(TACH_CX - 50, TACH_CY + 35, rpmStr, COLOR_WHITE, RGB565(30, 30, 30), 2);
+        strcpy(g_prevRpmStr, rpmStr);
+      }
+
+      // Gear indicator inside RPM gauge
+      uint8_t gear = g_sdsData.gearPos;
+      if (gear > 6) gear = 0;
+      if (gear != g_prevGear)
+      {
+        g_prevGear = gear;
+        int16_t gearX = TACH_CX;
+        int16_t gearY = TACH_CY - 50;
+        int16_t gearW = 48;
+        int16_t gearH = 36;
+        LCD_FillRect(gearX - gearW/2 - 4, gearY - gearH/2 - 4, gearX + gearW/2 + 4, gearY + gearH/2 + 4, RGB565(20, 20, 20));
+        GFX_DrawStringScaled(gearX - 12, gearY - 18, gearStr[gear], 
+            (gear == 0) ? RGB565(100, 200, 100) : RGB565(255, 200, 0), 
+            RGB565(20, 20, 20), 4);
+      }
 
       uint32_t speedMph = (uint32_t)((unsigned long)g_sdsData.speed * 621371UL / 1000000UL);
       uint32_t dig[4] = { g_sdsData.coolantTemp, speedMph, g_sdsData.batteryVolt, g_sdsData.gearPos };
@@ -124,91 +157,188 @@ void Gauge_Update(void)
 
       if (g_detailMode)
       {
-        char buf[16];
-        snprintf(buf, sizeof(buf), "%u kPa", g_sdsData.mapKpa);
-        GFX_DrawStringScaled(80, 165, buf, COLOR_WHITE, RGB565(20, 20, 20), 1);
-        snprintf(buf, sizeof(buf), "%u C", g_sdsData.intakeAirTemp);
-        GFX_DrawStringScaled(80, 185, buf, COLOR_WHITE, RGB565(20, 20, 20), 1);
-        snprintf(buf, sizeof(buf), "%u%%", g_sdsData.throttlePos);
-        GFX_DrawStringScaled(80, 205, buf, COLOR_WHITE, RGB565(20, 20, 20), 1);
-        snprintf(buf, sizeof(buf), "%u", g_sdsData.o2Sensor);
-        GFX_DrawStringScaled(80, 225, buf, COLOR_WHITE, RGB565(20, 20, 20), 1);
-        snprintf(buf, sizeof(buf), "%u ms", g_sdsData.injectorPulse);
-        GFX_DrawStringScaled(80, 245, buf, COLOR_WHITE, RGB565(20, 20, 20), 1);
-        snprintf(buf, sizeof(buf), "%u deg", g_sdsData.ignitionTiming);
-        GFX_DrawStringScaled(80, 265, buf, COLOR_WHITE, RGB565(20, 20, 20), 1);
-        snprintf(buf, sizeof(buf), "%u", g_sdsData.iacStep);
-        GFX_DrawStringScaled(80, 285, buf, COLOR_WHITE, RGB565(20, 20, 20), 1);
+        if (!g_detailDrawn)
+        {
+          LCD_FillRect(10, 160, 290, 310, RGB565(20, 20, 20));
+          GFX_DrawStringScaled(15, 165, "MAP", RGB565(100, 100, 100), RGB565(20, 20, 20), 1);
+          GFX_DrawStringScaled(15, 185, "IAT", RGB565(100, 100, 100), RGB565(20, 20, 20), 1);
+          GFX_DrawStringScaled(15, 205, "TPS", RGB565(100, 100, 100), RGB565(20, 20, 20), 1);
+          GFX_DrawStringScaled(15, 225, "O2", RGB565(100, 100, 100), RGB565(20, 20, 20), 1);
+          GFX_DrawStringScaled(15, 245, "Inject", RGB565(100, 100, 100), RGB565(20, 20, 20), 1);
+          GFX_DrawStringScaled(15, 265, "Ign", RGB565(100, 100, 100), RGB565(20, 20, 20), 1);
+          GFX_DrawStringScaled(15, 285, "IAC", RGB565(100, 100, 100), RGB565(20, 20, 20), 1);
+          g_detailDrawn = 1;
+        }
+
+        uint32_t detailVals[8] = { g_sdsData.mapKpa, g_sdsData.intakeAirTemp, g_sdsData.throttlePos, g_sdsData.o2Sensor,
+                                   g_sdsData.injectorPulse, g_sdsData.ignitionTiming, g_sdsData.iacStep, 0 };
+        const char *detailUnits[8] = { "kPa", "C", "%", "", "ms", "deg", "", "" };
+        int16_t detailY[8] = { 165, 185, 205, 225, 245, 265, 285, 0 };
+        for (int i = 0; i < 7; i++)
+        {
+          if (detailVals[i] != g_prevDetailVals[i])
+          {
+            g_prevDetailVals[i] = detailVals[i];
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%lu %s", (unsigned long)detailVals[i], detailUnits[i]);
+            int16_t w = strlen(buf) * FONT_STEP;
+            int16_t h = FONT_H;
+            LCD_FillRect(80, detailY[i], 80 + w, detailY[i] + h, RGB565(20, 20, 20));
+            GFX_DrawStringScaled(80, detailY[i], buf, COLOR_WHITE, RGB565(20, 20, 20), 1);
+          }
+        }
+      }
+      else
+      {
+        g_detailDrawn = 0;
+        for (int i = 0; i < 8; i++) g_prevDetailVals[i] = 0xFFFFFFFF;
       }
       break;
     }
 
     case GAUGE_PAGE_SENSORS:
     {
-      LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 21, RGB565(30, 30, 30));
-      GFX_DrawStringScaled(30, 80, "MAP", COLOR_GRAY, RGB565(30, 30, 30), 2);
-      DigValueU32(0, g_sdsData.mapKpa, "kPa", COLOR_WHITE);
-      GFX_DrawStringScaled(30, 80 + DIG_STEP, "O2", COLOR_GRAY, RGB565(30, 30, 30), 2);
-      DigValueU32(1, g_sdsData.o2Sensor, "", COLOR_WHITE);
-      GFX_DrawStringScaled(30, 80 + DIG_STEP * 2, "Ign Timing", COLOR_GRAY, RGB565(30, 30, 30), 2);
-      DigValueU32(2, g_sdsData.ignitionTiming, "deg", COLOR_WHITE);
-      GFX_DrawStringScaled(30, 80 + DIG_STEP * 3, "IAC Steps", COLOR_GRAY, RGB565(30, 30, 30), 2);
-      DigValueU32(3, g_sdsData.iacStep, "", COLOR_WHITE);
+      if (g_pageDirty)
+      {
+        LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 21, RGB565(30, 30, 30));
+        GFX_DrawStringScaled(30, 80, "MAP", COLOR_GRAY, RGB565(30, 30, 30), 2);
+        GFX_DrawStringScaled(30, 80 + DIG_STEP, "O2", COLOR_GRAY, RGB565(30, 30, 30), 2);
+        GFX_DrawStringScaled(30, 80 + DIG_STEP * 2, "Ign Timing", COLOR_GRAY, RGB565(30, 30, 30), 2);
+        GFX_DrawStringScaled(30, 80 + DIG_STEP * 3, "IAC Steps", COLOR_GRAY, RGB565(30, 30, 30), 2);
+        g_pageDirty = 0;
+        g_prevSensors[0] = g_sdsData.mapKpa;
+        g_prevSensors[1] = g_sdsData.o2Sensor;
+        g_prevSensors[2] = g_sdsData.ignitionTiming;
+        g_prevSensors[3] = g_sdsData.iacStep;
+      }
+      else
+      {
+        uint32_t sensors[4] = { g_sdsData.mapKpa, g_sdsData.o2Sensor, g_sdsData.ignitionTiming, g_sdsData.iacStep };
+        const char *units[4] = { "kPa", "", "deg", "" };
+        for (int i = 0; i < 4; i++)
+        {
+          if (sensors[i] != g_prevSensors[i])
+          {
+            g_prevSensors[i] = sensors[i];
+            DigValueU32(i, sensors[i], units[i], COLOR_WHITE);
+          }
+        }
+      }
       break;
     }
 
     case GAUGE_PAGE_DTC:
     {
-      LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 21, RGB565(30, 30, 30));
       uint8_t dtcBuf[32];
       uint16_t count = SDS_GetDTCs(dtcBuf, sizeof(dtcBuf));
-      char buf[32];
-      snprintf(buf, sizeof(buf), "DTC Count: %u", count);
-      GFX_DrawStringScaled(30, 80, buf, COLOR_WHITE, RGB565(30, 30, 30), 2);
-      if (count > 0)
+
+      if (g_pageDirty || count != g_prevDtcCount)
       {
-        for (uint16_t i = 0; i < count && i < 6; i++)
+        if (g_pageDirty)
         {
-          snprintf(buf, sizeof(buf), "  %02X", dtcBuf[i]);
-          GFX_DrawStringScaled(30, 130 + i * 30, buf, COLOR_RED, RGB565(30, 30, 30), 2);
+          LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 21, RGB565(30, 30, 30));
         }
+        else
+        {
+          LCD_FillRect(30, 80, 250, 130, RGB565(30, 30, 30));
+          for (int i = 0; i < 6; i++)
+            LCD_FillRect(30, 130 + i * 30, 250, 130 + (i + 1) * 30, RGB565(30, 30, 30));
+        }
+
+        char buf[32];
+        snprintf(buf, sizeof(buf), "DTC Count: %u", count);
+        GFX_DrawStringScaled(30, 80, buf, COLOR_WHITE, RGB565(30, 30, 30), 2);
+        if (count > 0)
+        {
+          for (uint16_t i = 0; i < count && i < 6; i++)
+          {
+            snprintf(buf, sizeof(buf), "  %02X", dtcBuf[i]);
+            GFX_DrawStringScaled(30, 130 + i * 30, buf, COLOR_RED, RGB565(30, 30, 30), 2);
+          }
+        }
+        g_prevDtcCount = count;
+        g_pageDirty = 0;
       }
       break;
     }
 
     case GAUGE_PAGE_SETTINGS:
     {
-      LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 21, RGB565(30, 30, 30));
-      GFX_DrawStringScaled(30, 80, "K-Line:", COLOR_GRAY, RGB565(30, 30, 30), 2);
-      DigValue(0, KLine_IsConnected() ? "OK" : "NC", KLine_IsConnected() ? COLOR_GREEN : COLOR_RED);
-      GFX_DrawStringScaled(30, 80 + DIG_STEP, "BT:", COLOR_GRAY, RGB565(30, 30, 30), 2);
-      DigValue(1, BT_IsConnected() ? "OK" : "NC", BT_IsConnected() ? COLOR_GREEN : COLOR_RED);
-      GFX_DrawStringScaled(30, 80 + DIG_STEP * 2, "SD:", COLOR_GRAY, RGB565(30, 30, 30), 2);
-      DigValue(2, SD_Log_IsMounted() ? "OK" : "NC", SD_Log_IsMounted() ? COLOR_GREEN : COLOR_RED);
-      GFX_DrawStringScaled(30, 80 + DIG_STEP * 3, "Log:", COLOR_GRAY, RGB565(30, 30, 30), 2);
-      DigValue(3, SD_Log_IsActive() ? "ON" : "OFF", SD_Log_IsActive() ? COLOR_GREEN : COLOR_GRAY);
+      uint8_t settings[4] = {
+        KLine_IsConnected() ? 1 : 0,
+        BT_IsConnected() ? 1 : 0,
+        SD_Log_IsMounted() ? 1 : 0,
+        SD_Log_IsActive() ? 1 : 0
+      };
+      const char *labels[4] = { "K-Line:", "BT:", "SD:", "Log:" };
+      const char *values[4][2] = {
+        { "NC", "OK" },
+        { "NC", "OK" },
+        { "NC", "OK" },
+        { "OFF", "ON" }
+      };
+      const uint16_t colors[4][2] = {
+        { COLOR_RED, COLOR_GREEN },
+        { COLOR_RED, COLOR_GREEN },
+        { COLOR_RED, COLOR_GREEN },
+        { COLOR_GRAY, COLOR_GREEN }
+      };
+
+      if (g_pageDirty)
+      {
+        LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 21, RGB565(30, 30, 30));
+        for (int i = 0; i < 4; i++)
+        {
+          GFX_DrawStringScaled(30, 80 + i * DIG_STEP, labels[i], COLOR_GRAY, RGB565(30, 30, 30), 2);
+          DigValue(i, values[i][settings[i]], colors[i][settings[i]]);
+        }
+        for (int i = 0; i < 4; i++) g_prevSettings[i] = settings[i];
+        g_pageDirty = 0;
+      }
+      else
+      {
+        for (int i = 0; i < 4; i++)
+        {
+          if (settings[i] != g_prevSettings[i])
+          {
+            g_prevSettings[i] = settings[i];
+            DigValue(i, values[i][settings[i]], colors[i][settings[i]]);
+          }
+        }
+      }
       break;
     }
 
     case GAUGE_PAGE_ABOUT:
     {
-      LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 21, RGB565(20, 20, 20));
-      GFX_DrawStringScaled(60, 40, "Suzuki ECU Tool", RGB565(0, 180, 255), RGB565(20, 20, 20), 3);
-      GFX_DrawStringScaled(80, 85, "2004 GSX-R1000", RGB565(180, 180, 180), RGB565(20, 20, 20), 2);
-
-      GFX_DrawStringScaled(40, 130, "Version :", RGB565(100, 100, 100), RGB565(20, 20, 20), 1);
-      GFX_DrawStringScaled(160, 130, "1.x", RGB565(200, 200, 200), RGB565(20, 20, 20), 1);
-      GFX_DrawStringScaled(40, 150, "Date    :", RGB565(100, 100, 100), RGB565(20, 20, 20), 1);
-      GFX_DrawStringScaled(160, 150, __DATE__, RGB565(200, 200, 200), RGB565(20, 20, 20), 1);
-      GFX_DrawStringScaled(40, 170, "Maker   :", RGB565(100, 100, 100), RGB565(20, 20, 20), 1);
-      GFX_DrawStringScaled(160, 170, "Uronour", RGB565(200, 200, 200), RGB565(20, 20, 20), 1);
-      GFX_DrawStringScaled(40, 190, "AI      :", RGB565(100, 100, 100), RGB565(20, 20, 20), 1);
-      GFX_DrawStringScaled(160, 190, "OpenCode (claude-sonnet)", RGB565(200, 200, 200), RGB565(20, 20, 20), 1);
-
-      GFX_DrawStringScaled(40, 220, "github.com/uronour/", RGB565(80, 80, 80), RGB565(20, 20, 20), 1);
-      GFX_DrawStringScaled(40, 240, "suzuki-ecu-tool", RGB565(80, 80, 80), RGB565(20, 20, 20), 1);
-
-      GFX_DrawStringScaled(40, 270, "GPL-3.0", RGB565(60, 60, 60), RGB565(20, 20, 20), 1);
+      if (g_pageDirty || !g_aboutDrawn)
+      {
+        LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 21, RGB565(20, 20, 20));
+        
+        int16_t lineY = 20;
+        
+        GFX_DrawStringCenterScaled(lineY, "Suzuki ECU Tool", RGB565(0, 180, 255), RGB565(20, 20, 20), 3);
+        lineY += 45;
+        GFX_DrawStringCenterScaled(lineY, "2004 GSX-R1000", RGB565(180, 180, 180), RGB565(20, 20, 20), 2);
+        lineY += 40;
+        GFX_DrawStringCenterScaled(lineY, "Version 1.x", RGB565(200, 200, 200), RGB565(20, 20, 20), 2);
+        lineY += 35;
+        GFX_DrawStringCenterScaled(lineY, __DATE__, RGB565(180, 180, 180), RGB565(20, 20, 20), 2);
+        lineY += 35;
+        GFX_DrawStringCenterScaled(lineY, "Maker: Uronour", RGB565(200, 200, 200), RGB565(20, 20, 20), 2);
+        lineY += 35;
+        GFX_DrawStringCenterScaled(lineY, "AI: OpenCode (claude-sonnet)", RGB565(180, 180, 180), RGB565(20, 20, 20), 2);
+        
+        lineY += 45;
+        GFX_DrawStringCenterScaled(lineY, "github.com/uronour/", RGB565(120, 120, 120), RGB565(20, 20, 20), 1);
+        lineY += 25;
+        GFX_DrawStringCenterScaled(lineY, "suzuki-ecu-tool", RGB565(120, 120, 120), RGB565(20, 20, 20), 1);
+        
+        lineY += 35;
+        GFX_DrawStringCenterScaled(lineY, "GPL-3.0", RGB565(80, 80, 80), RGB565(20, 20, 20), 1);
+        g_aboutDrawn = 1;
+        g_pageDirty = 0;
+      }
       break;
     }
   }
@@ -226,14 +356,23 @@ void Gauge_SetPage(GaugePage page)
     g_prevNeedleVal = 0xFFFFFFFF;
     for (int i = 0; i < 4; i++) g_prevDig[i] = 0xFFFFFFFF;
     g_detailMode = 0;
+    g_detailDrawn = 0;
+    for (int i = 0; i < 8; i++) g_prevDetailVals[i] = 0xFFFFFFFF;
+    memset(g_prevRpmStr, 0, sizeof(g_prevRpmStr));
+    for (int i = 0; i < 4; i++) g_prevSensors[i] = 0xFFFFFFFF;
+    g_prevDtcCount = 0xFFFF;
+    for (int i = 0; i < 4; i++) g_prevSettings[i] = 0xFF;
+    g_aboutDrawn = 0;
+    g_pageDirty = 1;
+
     if (page == GAUGE_PAGE_DASHBOARD)
     {
       LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, RGB565(30, 30, 30));
       DrawTachoFace();
-    }
-    else
-    {
-      LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 21, RGB565(30, 30, 30));
+      DigLabel(0, "Coolant");
+      DigLabel(1, "Speed");
+      DigLabel(2, "Battery");
+      DigLabel(3, "Gear");
     }
     Gauge_Update();
   }
@@ -269,36 +408,10 @@ void Gauge_Press(void)
 
 void Gauge_NextPage(void)
 {
-  g_currentPage = (g_currentPage + 1) % GAUGE_PAGE_COUNT;
-  g_prevNeedleVal = 0xFFFFFFFF;
-  for (int i = 0; i < 4; i++) g_prevDig[i] = 0xFFFFFFFF;
-  g_detailMode = 0;
-  if (g_currentPage == GAUGE_PAGE_DASHBOARD)
-  {
-    LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, RGB565(30, 30, 30));
-    DrawTachoFace();
-  }
-  else
-  {
-    LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 21, RGB565(30, 30, 30));
-  }
-  Gauge_Update();
+  Gauge_SetPage((g_currentPage + 1) % GAUGE_PAGE_COUNT);
 }
 
 void Gauge_PrevPage(void)
 {
-  g_currentPage = (g_currentPage == 0) ? (GAUGE_PAGE_COUNT - 1) : (g_currentPage - 1);
-  g_prevNeedleVal = 0xFFFFFFFF;
-  for (int i = 0; i < 4; i++) g_prevDig[i] = 0xFFFFFFFF;
-  g_detailMode = 0;
-  if (g_currentPage == GAUGE_PAGE_DASHBOARD)
-  {
-    LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, RGB565(30, 30, 30));
-    DrawTachoFace();
-  }
-  else
-  {
-    LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 21, RGB565(30, 30, 30));
-  }
-  Gauge_Update();
+  Gauge_SetPage((g_currentPage == 0) ? (GAUGE_PAGE_COUNT - 1) : (g_currentPage - 1));
 }

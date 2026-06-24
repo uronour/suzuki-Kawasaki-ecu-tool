@@ -42,6 +42,7 @@ void LCD_SetBrightness(uint8_t pct);
 void GFX_DrawChar(int16_t x, int16_t y, char c, uint16_t color, uint16_t bg);
 void GFX_DrawString(int16_t x, int16_t y, const char *str, uint16_t color, uint16_t bg);
 void GFX_DrawStringCenter(int16_t y, const char *str, uint16_t color, uint16_t bg);
+void GFX_DrawStringCenterScaled(int16_t y, const char *str, uint16_t color, uint16_t bg, uint8_t scale);
 void GFX_DrawInt(int16_t x, int16_t y, int32_t val, uint8_t digits, uint16_t color, uint16_t bg);
 void GFX_DrawFloat(int16_t x, int16_t y, float val, uint8_t decimals, uint16_t color, uint16_t bg);
 

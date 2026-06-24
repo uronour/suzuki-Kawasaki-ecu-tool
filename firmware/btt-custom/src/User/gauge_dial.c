@@ -152,8 +152,6 @@ void DIAL_DrawNeedle(GaugeDial *d, uint32_t value, uint16_t color, uint16_t bgCo
 {
   int16_t tipR = d->radius - d->arcWidth - 4;
   int16_t tailR = -(d->radius / 5);
-  int16_t maxR = tipR + 8;
-  int16_t hw = maxR;
 
   if (value != oldValue && oldValue != 0xFFFFFFFF)
   {
@@ -164,13 +162,14 @@ void DIAL_DrawNeedle(GaugeDial *d, uint32_t value, uint16_t color, uint16_t bgCo
     int16_t ty = d->cy + (tipR * sinv) / DIAL_SIN_SCALE;
     int16_t tlx = d->cx + (tailR * cosv) / DIAL_SIN_SCALE;
     int16_t tly = d->cy + (tailR * sinv) / DIAL_SIN_SCALE;
+
     int16_t minx = tlx < tx ? tlx : tx;
     int16_t maxx = tlx > tx ? tlx : tx;
     int16_t miny = tly < ty ? tly : ty;
     int16_t maxy = tly > ty ? tly : ty;
-    LCD_FillRect(d->cx - hw, d->cy - hw, d->cx + hw, d->cy + hw, bgColor);
-    LCD_FillRect(minx - 5, miny - 5, maxx + 5, maxy + 5, bgColor);
-    DrawThickLine(tlx, tly, tx, ty, bgColor, bgColor, 7);
+
+    int16_t pad = 7;
+    LCD_FillRect(minx - pad, miny - pad, maxx + pad, maxy + pad, bgColor);
   }
 
   int16_t ang = DIAL_AngleForValue(d, value);
