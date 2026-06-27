@@ -57,10 +57,13 @@ void LCD_FillRect(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t c
 void LCD_DrawProgressBar(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t pct, uint16_t barColor, uint16_t bgColor)
 {
   if (pct > 100) pct = 100;
-  LCD_FillRect(x, y, x + w, y + h, bgColor);
+  /* Use inclusive coordinates: x1 = x + w - 1, y1 = y + h - 1 */
+  if (w == 0 || h == 0) return;
+  LCD_FillRect(x, y, x + w - 1, y + h - 1, bgColor);
+  if (w <= 2 || h <= 2) return;
   uint16_t fillW = ((w - 2) * pct) / 100;
   if (fillW > 0)
-    LCD_FillRect(x + 1, y + 1, x + 1 + fillW, y + h - 1, barColor);
+    LCD_FillRect(x + 1, y + 1, x + 1 + fillW - 1, y + h - 2, barColor);
 }
 
 void LCD_Backlight_On(void)
@@ -77,17 +80,41 @@ void LCD_SetBrightness(uint8_t pct)
 
 static const uint8_t (*g_font)[13] = font_8x13;
 
+/*
+ * New helpers: windowed write helpers. These reduce overhead by calling
+ * ILI9488_SetWindow once for a rectangle and streaming many pixels.
+ */
+static inline void LCD_BeginWrite(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
+{
+  ILI9488_SetWindow(x0, y0, x1, y1);
+  LCD_WR_REG(0x2C); // memory write command
+}
+
+static inline void LCD_WriteColor(uint16_t color)
+{
+  LCD_WR_DATA(color);
+}
+
+static void LCD_WriteColorN(uint16_t color, uint32_t count)
+{
+  while (count--) LCD_WR_DATA(color);
+}
+
 void GFX_DrawChar(int16_t x, int16_t y, char c, uint16_t color, uint16_t bg)
 {
   if (c < 32 || c > 126) c = 32;
   uint8_t idx = c - 32;
+  /* Draw full glyph rectangle in a single windowed write to avoid per-pixel SetWindow */
+  LCD_BeginWrite(x, y, x + FONT_W - 1, y + FONT_H - 1);
   for (uint8_t row = 0; row < FONT_H; row++)
   {
     uint8_t bits = g_font[idx][row];
     for (uint8_t col = 0; col < FONT_W; col++)
     {
       if (bits & (0x80 >> col))
-        LCD_DrawPixel(x + col, y + row, color);
+        LCD_WriteColor(color);
+      else
+        LCD_WriteColor(bg);
     }
   }
 }
@@ -139,16 +166,20 @@ void GFX_DrawCharScaled(int16_t x, int16_t y, char c, uint16_t color, uint16_t b
 {
   if (c < 32 || c > 126) c = 32;
   uint8_t idx = c - 32;
+  /* Single-pass scaled glyph: write the entire scaled rect */
+  int16_t w = FONT_W * scale;
+  int16_t h = FONT_H * scale;
+  LCD_BeginWrite(x, y, x + w - 1, y + h - 1);
   for (uint8_t row = 0; row < FONT_H; row++)
   {
     uint8_t bits = g_font[idx][row];
-    for (uint8_t col = 0; col < FONT_W; col++)
+    for (uint8_t sy = 0; sy < scale; sy++)
     {
-      if (bits & (0x80 >> col))
+      for (uint8_t col = 0; col < FONT_W; col++)
       {
-        for (uint8_t dy = 0; dy < scale; dy++)
-          for (uint8_t dx = 0; dx < scale; dx++)
-            LCD_DrawPixel(x + col * scale + dx, y + row * scale + dy, color);
+        uint16_t pixelColor = (bits & (0x80 >> col)) ? color : bg;
+        for (uint8_t sx = 0; sx < scale; sx++)
+          LCD_WriteColor(pixelColor);
       }
     }
   }
@@ -162,3 +193,5 @@ void GFX_DrawStringScaled(int16_t x, int16_t y, const char *str, uint16_t color,
     x += FONT_STEP * scale;
   }
 }
+
+
