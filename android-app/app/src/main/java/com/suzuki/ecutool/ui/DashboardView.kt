@@ -5,8 +5,14 @@ import android.graphics.*
 import android.util.AttributeSet
 import android.view.View
 import com.suzuki.ecutool.data.SDSData
-import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.*
+
+enum class DashLayout {
+    SPORT,   // Circular big tach, digital speedo
+    RACE,    // Horizontal bar tach
+    CLASSIC  // Analog dual-gauge style
+}
 
 data class GaugeTheme(
     val name: String,
@@ -26,18 +32,25 @@ data class GaugeTheme(
 
 object GaugeThemes {
     val Sport = GaugeTheme("Sport",
-        Color.rgb(8, 8, 12), Color.rgb(18, 18, 28),
-        Color.WHITE, Color.rgb(150, 150, 165),
-        Color.rgb(220, 28, 28), Color.rgb(255, 60, 60),
-        Color.rgb(0, 200, 80), Color.rgb(255, 180, 0), Color.RED,
-        Color.RED, Color.rgb(25, 25, 38), Color.RED)
+        Color.BLACK, Color.rgb(20, 20, 30),
+        Color.WHITE, Color.rgb(180, 180, 190),
+        Color.rgb(220, 20, 20), Color.rgb(0, 150, 255),
+        Color.rgb(0, 255, 100), Color.rgb(255, 200, 0), Color.rgb(255, 0, 0),
+        Color.RED, Color.rgb(30, 30, 45), Color.RED)
+
+    val Race = GaugeTheme("Race",
+        Color.rgb(10, 10, 10), Color.rgb(30, 30, 30),
+        Color.rgb(0, 255, 255), Color.rgb(150, 255, 255),
+        Color.rgb(255, 255, 0), Color.rgb(255, 255, 255),
+        Color.rgb(0, 255, 0), Color.rgb(255, 255, 0), Color.rgb(255, 0, 0),
+        Color.WHITE, Color.rgb(40, 40, 40), Color.RED)
 
     val Classic = GaugeTheme("Classic",
-        Color.rgb(18, 18, 14), Color.rgb(28, 28, 22),
-        Color.rgb(235, 230, 215), Color.rgb(170, 165, 150),
-        Color.rgb(200, 170, 100), Color.rgb(220, 200, 140),
-        Color.rgb(100, 180, 80), Color.rgb(200, 160, 50), Color.rgb(200, 60, 40),
-        Color.rgb(200, 170, 100), Color.rgb(32, 32, 26), Color.rgb(200, 60, 40))
+        Color.rgb(20, 20, 15), Color.rgb(40, 40, 35),
+        Color.rgb(240, 235, 220), Color.rgb(180, 175, 160),
+        Color.rgb(210, 160, 80), Color.rgb(230, 190, 120),
+        Color.rgb(120, 200, 100), Color.rgb(220, 180, 70), Color.rgb(220, 80, 60),
+        Color.rgb(210, 160, 80), Color.rgb(35, 35, 30), Color.rgb(220, 60, 40))
 
     val Night = GaugeTheme("Night",
         Color.rgb(4, 7, 14), Color.rgb(10, 16, 28),
@@ -68,12 +81,8 @@ class TripComputer {
         odometerKm += distKm
         if (speedKmh > maxSpeed) maxSpeed = speedKmh
         if (speedKmh > 0) movingTime += (dt * 1000).toLong()
-
-        // rough fuel estimate: ~0.05ml/s per ms injector at idle, scales with load
         fuelUsedMl += injectorMs * dt * 0.003f
-
-        lastSpeed = speedKmh
-        lastTime = nowMs
+        lastSpeed = speedKmh; lastTime = nowMs
     }
 
     fun resetTrip() { tripKm = 0f; maxSpeed = 0f; movingTime = 0; fuelUsedMl = 0f }
@@ -82,221 +91,212 @@ class TripComputer {
 class DashboardView(context: Context, attrs: AttributeSet? = null) : View(context, attrs) {
 
     var data = SDSData()
-        set(v) { field = v; postInvalidate() }
+        set(v) { field = v; postInvalidateOnAnimation() }
 
     var trip = TripComputer()
-        set(v) { field = v; postInvalidate() }
-
     var config = DashConfig()
-        set(v) { field = v; postInvalidate() }
-
     var theme: GaugeTheme = GaugeThemes.Sport
-        set(v) { field = v; postInvalidate() }
+    var layoutMode: DashLayout = DashLayout.SPORT
 
-    // UI-only indicators (not from ECU)
+    // Smoothing & Peaks
+    private var displayRpm = 0f
+    private var displaySpeed = 0f
+    private var peakRpm = 0f
+    private var peakSpeed = 0f
+    
+    // Indicators
     var leftTurnBlinking = false
     var rightTurnBlinking = false
     var hiBeamOn = false
     var hasDtc = false
 
     private val pFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
-    private val pStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-    private val pText = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val pStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
+    private val pText = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT_BOLD }
     private val rect = RectF()
-    private val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
 
     override fun onDraw(canvas: Canvas) {
         val w = width.toFloat(); val h = height.toFloat()
         val cx = w / 2f; val cy = h / 2f; val s = minOf(w, h)
 
+        // Smooth movement (simple lerp)
+        displayRpm = displayRpm * 0.7f + data.rpm * 0.3f
+        displaySpeed = displaySpeed * 0.8f + data.speedKmh() * 0.2f
+        
+        if (data.rpm > peakRpm) peakRpm = data.rpm.toFloat()
+        if (data.speedKmh() > peakSpeed) peakSpeed = data.speedKmh()
+
         canvas.drawColor(theme.bgColor)
 
-        if (config.showRpmGauge) drawRpmGauge(canvas, cx, cy, s)
-        if (config.showSpeedo) drawSpeedo(canvas, cx, cy, s)
-        if (config.showFuelGauge) drawFuelGauge(canvas, cx, h, s)
-        if (config.showGear) drawGearDisplay(canvas, cx, cy, s)
-        if (config.showCenterPanel) drawCenterPanel(canvas, cx, cy, s)
-        if (config.showIndicators) drawIndicators(canvas, cx, h, s)
-        if (config.showOdometer) drawOdometerPanel(canvas, cx, h, s)
-        if (config.showKmLarge) drawSpeedDigital(canvas, cx, cy, s)
+        when (layoutMode) {
+            DashLayout.SPORT -> drawSportLayout(canvas, cx, cy, s)
+            DashLayout.RACE -> drawRaceLayout(canvas, w, h, s)
+            DashLayout.CLASSIC -> drawClassicLayout(canvas, cx, cy, s)
+        }
+        
+        if (config.showIndicators) drawUniversalIndicators(canvas, w, h, s)
     }
 
-    // ─── RPM GAUGE ───────────────────────────────────────────────
-    private fun drawRpmGauge(canvas: Canvas, cx: Float, cy: Float, s: Float) {
-        val r = s * 0.30f; val gap = s * 0.12f
-        rect.set(cx - r - gap, cy - r - s * 0.02f, cx + r + gap, cy + r + s * 0.02f)
-        val sweep = 220f; val start = 160f
-        val rpm = data.rpm.coerceIn(0, 15000)
-        val angle = (rpm / 15000f) * sweep
+    private fun drawSportLayout(canvas: Canvas, cx: Float, cy: Float, s: Float) {
+        val r = s * 0.42f
+        val startAngle = 140f
+        val sweepAngle = 260f
+        val maxRpm = 14000f
+        val rpmAngle = (displayRpm / maxRpm) * sweepAngle
 
-        pStroke.strokeWidth = s * 0.025f
-        pStroke.color = theme.cardBg; canvas.drawArc(rect, start, sweep, false, pStroke)
+        rect.set(cx - r, cy - r, cx + r, cy + r)
+        pStroke.strokeWidth = s * 0.08f
+        pStroke.color = theme.cardBg
+        canvas.drawArc(rect, startAngle, sweepAngle, false, pStroke)
+
+        pStroke.strokeWidth = s * 0.06f
         pStroke.color = theme.rpmGreen
-        canvas.drawArc(rect, start, minOf(angle, sweep * 0.6f), false, pStroke)
-        if (angle > sweep * 0.6f) {
+        canvas.drawArc(rect, startAngle, min(rpmAngle, sweepAngle * 0.6f), false, pStroke)
+        
+        if (rpmAngle > sweepAngle * 0.6f) {
             pStroke.color = theme.rpmYellow
-            canvas.drawArc(rect, start + sweep * 0.6f, minOf(angle - sweep * 0.6f, sweep * 0.2f), false, pStroke)
+            canvas.drawArc(rect, startAngle + sweepAngle * 0.6f, min(rpmAngle - sweepAngle * 0.6f, sweepAngle * 0.25f), false, pStroke)
         }
-        if (angle > sweep * 0.8f) {
+        if (rpmAngle > sweepAngle * 0.85f) {
             pStroke.color = theme.rpmRed
-            canvas.drawArc(rect, start + sweep * 0.8f, angle - sweep * 0.8f, false, pStroke)
+            canvas.drawArc(rect, startAngle + sweepAngle * 0.85f, rpmAngle - sweepAngle * 0.85f, false, pStroke)
         }
-        drawArcTicks(canvas, cx, cy, r, s, start, sweep, 15, 0, 15000, true)
-        drawNeedle(canvas, cx, cy, r * 0.85f, start + angle, s, theme.needleColor)
-    }
 
-    // ─── SPEEDOMETER ─────────────────────────────────────────────
-    private fun drawSpeedo(canvas: Canvas, cx: Float, cy: Float, s: Float) {
-        val r = s * 0.26f; val scx = cx + r + s * 0.12f
-        rect.set(scx - r, cy - r - s * 0.02f, scx + r, cy + r + s * 0.02f)
-        val sweep = 220f; val start = 160f
-        val spd = data.speedKmh().coerceIn(0f, 300f)
-        val angle = (spd / 300f) * sweep
-
-        pStroke.strokeWidth = s * 0.022f
-        pStroke.color = theme.cardBg; canvas.drawArc(rect, start, sweep, false, pStroke)
-        pStroke.color = theme.accent2; canvas.drawArc(rect, start, angle, false, pStroke)
-        drawArcTicks(canvas, scx, cy, r, s, start, sweep, 6, 0, 300, false)
-        drawNeedle(canvas, scx, cy, r * 0.85f, start + angle, s, theme.accent2)
-    }
-
-    private fun drawArcTicks(canvas: Canvas, cx: Float, cy: Float, r: Float, s: Float, start: Float, sweep: Float, n: Int, vMin: Int, vMax: Int, labels: Boolean) {
-        pStroke.strokeWidth = s * 0.006f; pText.textSize = s * 0.03f; pText.textAlign = Paint.Align.CENTER
-        for (i in 0..n) {
-            val a = Math.toRadians((start + (i.toFloat() / n) * sweep).toDouble())
-            val ir = r * 0.82f; val or = r * 0.90f
-            pStroke.color = if (i % 3 == 0 && labels) theme.textSecondary else theme.cardBg
-            canvas.drawLine(cx + ir * cos(a), cy + ir * sin(a), cx + or * cos(a), cy + or * sin(a), pStroke)
-            if (i % 3 == 0 && labels) {
-                pText.color = theme.textSecondary
-                val lr = r * 0.70f
-                canvas.drawText("${vMin + (vMax - vMin) * i / n}", cx + lr * cos(a), cy + lr * sin(a) + s * 0.012f, pText)
+        // Shift Light
+        if (data.rpm >= config.shiftRpm) {
+            if (System.currentTimeMillis() % 150 < 75) {
+                pFill.color = Color.WHITE
+                canvas.drawCircle(cx, cy - r - s * 0.12f, s * 0.06f, pFill)
+                pFill.maskFilter = BlurMaskFilter(20f, BlurMaskFilter.Blur.NORMAL)
+                canvas.drawCircle(cx, cy - r - s * 0.12f, s * 0.08f, pFill)
+                pFill.maskFilter = null
             }
         }
-    }
 
-    private fun drawNeedle(canvas: Canvas, cx: Float, cy: Float, len: Float, angle: Float, s: Float, color: Int) {
-        val rad = Math.toRadians(angle.toDouble())
-        val nx = cx + len * cos(rad); val ny = cy + len * sin(rad)
-        pStroke.strokeWidth = s * 0.017f; pStroke.color = color
-        canvas.drawLine(cx, cy, nx, ny, pStroke)
-        pFill.color = color; canvas.drawCircle(cx, cy, s * 0.02f, pFill)
-    }
+        // Peak RPM Marker
+        val peakAngle = startAngle + (peakRpm / maxRpm) * sweepAngle
+        pStroke.color = Color.WHITE
+        pStroke.strokeWidth = 4f
+        canvas.drawArc(rect, peakAngle - 0.5f, 1f, false, pStroke)
 
-    private fun cos(a: Double) = Math.cos(a).toFloat()
-    private fun sin(a: Double) = Math.sin(a).toFloat()
-
-    // ─── DIGITAL SPEED ───────────────────────────────────────────
-    private fun drawSpeedDigital(canvas: Canvas, cx: Float, cy: Float, s: Float) {
-        val spd = data.speedKmh().coerceAtLeast(0f)
-        pText.textSize = s * 0.12f; pText.textAlign = Paint.Align.CENTER; pText.color = theme.textPrimary
-        canvas.drawText("%.0f".format(spd), cx, cy + s * 0.06f, pText)
-        pText.textSize = s * 0.03f; pText.color = theme.textSecondary
-        canvas.drawText(if (config.unitKmh) "km/h" else "mph", cx, cy + s * 0.12f, pText)
-    }
-
-    // ─── GEAR ────────────────────────────────────────────────────
-    private fun drawGearDisplay(canvas: Canvas, cx: Float, cy: Float, s: Float) {
-        val g = if (data.gearPos == 0) "N" else "${data.gearPos}"
-        pText.textSize = s * 0.1f; pText.textAlign = Paint.Align.CENTER
-        pText.color = if (data.gearPos == 0) theme.rpmGreen else theme.textPrimary
-        canvas.drawText(g, cx - s * 0.22f, cy + s * 0.06f, pText)
-    }
-
-    // ─── FUEL GAUGE ──────────────────────────────────────────────
-    private var fuelLevel = 0.7f // simulated until ECU provides it
-    private fun drawFuelGauge(canvas: Canvas, cx: Float, h: Float, s: Float) {
-        val x = cx + s * 0.40f; val y = h * 0.30f; val fw = s * 0.04f; val fh = s * 0.12f
-
-        pStroke.strokeWidth = s * 0.006f; pStroke.color = theme.textSecondary
-        canvas.drawRect(x - fw / 2, y - fh, x + fw / 2, y, pStroke)
-        canvas.drawRect(x - fw * 0.4f, y - fh * 1.15f, x + fw * 0.4f, y - fh, pStroke)
-
-        val fillH = fh * fuelLevel.coerceIn(0f, 1f)
-        pFill.color = when {
-            fuelLevel < 0.15f -> theme.warningRed
-            fuelLevel < 0.30f -> Color.rgb(255, 180, 0)
-            else -> theme.rpmGreen
-        }
-        canvas.drawRect(x - fw / 2 + s * 0.004f, y - fillH, x + fw / 2 - s * 0.004f, y - s * 0.004f, pFill)
-
-        pText.textSize = s * 0.025f; pText.textAlign = Paint.Align.CENTER; pText.color = theme.textSecondary
-        canvas.drawText("F", x, y + s * 0.025f, pText)
-    }
-
-    // ─── CENTER PANEL ────────────────────────────────────────────
-    private fun drawCenterPanel(canvas: Canvas, cx: Float, cy: Float, s: Float) {
-        val ty = cy + s * 0.18f; val ts = s * 0.03f; val gap = ts * 1.5f
-        pText.textSize = ts; pText.textAlign = Paint.Align.CENTER
-
-        data class Row(val label: String, val value: String)
-        val rows = mutableListOf<Row>()
-        if (config.showClock) rows.add(Row("", timeFmt.format(Date())))
-        rows.add(Row("COOL", "${data.coolantTemp}°C"))
-        rows.add(Row("BAT", "%.1fV".format(data.batteryVoltage())))
-        rows.add(Row("IAT", "${data.intakeAirTemp}°C"))
-        rows.add(Row("TPS", "${data.throttlePos}%"))
-        rows.add(Row("MAP", "${data.mapKpa}kPa"))
-        rows.add(Row("INJ", "%.1fms".format(data.injectorPulseMs())))
-
-        rows.forEachIndexed { i, row ->
-            val y = ty + i * gap
-            if (row.label.isNotEmpty()) {
-                pText.color = theme.textSecondary; canvas.drawText(row.label, cx, y, pText)
-            }
-            pText.color = if (row.label.isEmpty()) theme.accent2 else theme.textPrimary
-            canvas.drawText(row.value, cx, y + gap * 0.45f, pText)
-        }
-    }
-
-    // ─── ODOMETER / TRIP ─────────────────────────────────────────
-    private fun drawOdometerPanel(canvas: Canvas, cx: Float, h: Float, s: Float) {
-        val y = h * 0.15f
+        pText.textSize = s * 0.04f
         pText.textAlign = Paint.Align.CENTER
-        pText.textSize = s * 0.028f; pText.color = theme.textSecondary
-        canvas.drawText("ODO", cx, y, pText)
-        pText.textSize = s * 0.04f; pText.color = theme.textPrimary
-        canvas.drawText("%.1f km".format(trip.odometerKm), cx, y + s * 0.05f, pText)
+        for (i in 0..14) {
+            val angle = startAngle + (i / 14f) * sweepAngle
+            val rad = Math.toRadians(angle.toDouble())
+            val labelR = r - s * 0.12f
+            pText.color = theme.textPrimary
+            canvas.drawText("$i", cx + labelR * cos(rad).toFloat(), cy + labelR * sin(rad).toFloat() + s * 0.015f, pText)
+        }
 
-        pText.textSize = s * 0.024f; pText.color = theme.textSecondary
-        canvas.drawText("TRIP", cx + s * 0.35f, y, pText)
-        pText.textSize = s * 0.035f; pText.color = theme.accent2
-        canvas.drawText("%.1f".format(trip.tripKm), cx + s * 0.35f, y + s * 0.04f, pText)
+        pText.textSize = s * 0.22f
+        pText.color = theme.textPrimary
+        canvas.drawText("%.0f".format(displaySpeed), cx, cy + s * 0.05f, pText)
+        pText.textSize = s * 0.05f
+        pText.color = theme.textSecondary
+        canvas.drawText(if(config.unitKmh) "km/h" else "mph", cx, cy + s * 0.12f, pText)
+
+        drawGearLarge(canvas, cx + s * 0.25f, cy + s * 0.25f, s * 0.15f)
+        drawInfoPanel(canvas, cx - s * 0.45f, cy + s * 0.1f, s, "TEMP", "${data.coolantTemp} °C")
+        drawInfoPanel(canvas, cx + s * 0.45f, cy + s * 0.1f, s, "VOLT", "%.1f V".format(data.batteryVoltage()))
     }
 
-    // ─── INDICATORS ──────────────────────────────────────────────
-    private fun drawIndicators(canvas: Canvas, cx: Float, h: Float, s: Float) {
-        val items = mutableListOf<Pair<String, Boolean>>()
-        if (config.showNeutral) items.add("N" to data.neutral)
-        if (config.showFan) items.add("FAN" to data.fanOn)
-        if (config.showClutch) items.add("CLU" to data.clutchIn)
-        if (config.showSidestand) items.add("STD" to data.sidestandDown)
-        if (config.showCheckEngine) items.add("MIL" to hasDtc)
-        if (config.showOilLight) items.add("OIL" to false)
-        if (config.showHiBeam) items.add("HI" to hiBeamOn)
-        if (config.showTurnSignals) { items.add("◄" to leftTurnBlinking); items.add("►" to rightTurnBlinking) }
-        if (items.isEmpty()) return
+    private fun drawRaceLayout(canvas: Canvas, w: Float, h: Float, s: Float) {
+        val barTop = h * 0.1f
+        val barHeight = h * 0.12f
+        val barWidth = w * 0.9f
+        val barLeft = (w - barWidth) / 2f
+        
+        rect.set(barLeft, barTop, barLeft + barWidth, barTop + barHeight)
+        pFill.color = theme.cardBg
+        canvas.drawRoundRect(rect, 10f, 10f, pFill)
+        
+        val rpmPercent = (displayRpm / 14000f).coerceIn(0f, 1f)
+        val fillWidth = barWidth * rpmPercent
+        
+        val shader = LinearGradient(barLeft, 0f, barLeft + barWidth, 0f,
+            intArrayOf(theme.rpmGreen, theme.rpmYellow, theme.rpmRed),
+            floatArrayOf(0.5f, 0.8f, 1.0f), Shader.TileMode.CLAMP)
+        pFill.shader = shader
+        canvas.drawRoundRect(barLeft, barTop, barLeft + fillWidth, barTop + barHeight, 10f, 10f, pFill)
+        pFill.shader = null
 
-        val inY = h - s * 0.07f; val iw = s * 0.07f
-        val totalW = items.size * iw; val startX = cx - totalW / 2f
-        pText.textSize = s * 0.03f; pText.textAlign = Paint.Align.CENTER
+        pText.textSize = h * 0.4f
+        pText.textAlign = Paint.Align.LEFT
+        pText.color = theme.textPrimary
+        canvas.drawText("%.0f".format(displaySpeed), barLeft, h * 0.65f, pText)
+        
+        drawGearLarge(canvas, w - barLeft - s * 0.3f, h * 0.55f, s * 0.3f)
+        
+        val rowY = h * 0.75f
+        drawInfoPanel(canvas, barLeft + s * 0.1f, rowY, s, "TPS", "${data.throttlePos}%")
+        drawInfoPanel(canvas, barLeft + s * 0.3f, rowY, s, "MAP", "${data.mapKpa} kPa")
+        drawInfoPanel(canvas, barLeft + s * 0.5f, rowY, s, "IAT", "${data.intakeAirTemp} °C")
+    }
 
-        items.forEachIndexed { i, (label, active) ->
-            val x = startX + (i + 0.5f) * totalW / items.size
-            val bg = if (active) when {
-                label == "MIL" || label == "OIL" -> theme.warningRed
-                label == "◄" || label == "►" -> if (active) theme.rpmGreen else theme.cardBg
-                label == "HI" -> theme.accent2
-                else -> theme.accent
-            } else theme.cardBg
+    private fun drawClassicLayout(canvas: Canvas, cx: Float, cy: Float, s: Float) {
+        val gaugeR = s * 0.35f
+        drawAnalogGauge(canvas, cx - s * 0.3f, cy, gaugeR, "RPM", displayRpm, 14000f, theme.rpmRed)
+        drawAnalogGauge(canvas, cx + s * 0.3f, cy, gaugeR, if(config.unitKmh) "km/h" else "mph", displaySpeed, 300f, theme.accent2)
+        
+        pText.textSize = s * 0.04f
+        pText.textAlign = Paint.Align.CENTER
+        pText.color = theme.textPrimary
+        canvas.drawText("ODO: %.1f km".format(trip.odometerKm), cx, cy + s * 0.4f, pText)
+    }
+    
+    private fun drawAnalogGauge(canvas: Canvas, gx: Float, gy: Float, r: Float, unit: String, value: Float, max: Float, warnColor: Int) {
+        val start = 135f; val sweep = 270f
+        rect.set(gx - r, gy - r, gx + r, gy + r)
+        pStroke.strokeWidth = r * 0.1f; pStroke.color = theme.cardBg
+        canvas.drawArc(rect, start, sweep, false, pStroke)
+        val valAngle = (value / max).coerceIn(0f, 1f) * sweep
+        pStroke.color = if (value > max * 0.85f) warnColor else theme.textPrimary
+        canvas.drawArc(rect, start, valAngle, false, pStroke)
+        pText.textSize = r * 0.2f; pText.textAlign = Paint.Align.CENTER; pText.color = theme.textSecondary
+        canvas.drawText(unit, gx, gy + r * 0.4f, pText)
+        pText.textSize = r * 0.3f; pText.color = theme.textPrimary
+        canvas.drawText("%.0f".format(value), gx, gy + r * 0.1f, pText)
+    }
 
-            pFill.color = bg
-            canvas.drawRoundRect(x - iw * 0.4f, inY - iw * 0.35f, x + iw * 0.4f, inY + iw * 0.35f, s * 0.01f, s * 0.01f, pFill)
-            pText.color = if (active) theme.bgColor else theme.textSecondary
-            canvas.drawText(label, x, inY + s * 0.012f, pText)
+    private fun drawGearLarge(canvas: Canvas, x: Float, y: Float, size: Float) {
+        rect.set(x - size / 2, y - size / 2, x + size / 2, y + size / 2)
+        pFill.color = theme.cardBg
+        canvas.drawRoundRect(rect, 20f, 20f, pFill)
+        pText.textSize = size * 0.8f
+        pText.textAlign = Paint.Align.CENTER
+        pText.color = if (data.gearPos == 0) theme.rpmGreen else theme.accent
+        val g = if (data.gearPos == 0) "N" else "${data.gearPos}"
+        canvas.drawText(g, x, y + size * 0.3f, pText)
+    }
+
+    private fun drawInfoPanel(canvas: Canvas, x: Float, y: Float, s: Float, label: String, value: String) {
+        pText.textSize = s * 0.035f; pText.color = theme.textSecondary; pText.textAlign = Paint.Align.CENTER
+        canvas.drawText(label, x, y, pText)
+        pText.textSize = s * 0.055f; pText.color = theme.textPrimary
+        canvas.drawText(value, x, y + s * 0.06f, pText)
+    }
+
+    private fun drawUniversalIndicators(canvas: Canvas, w: Float, h: Float, s: Float) {
+        val bottomY = h - s * 0.15f
+        val iconSize = s * 0.1f
+        val icons = mutableListOf<Triple<String, Boolean, Int>>()
+        icons.add(Triple("N", data.neutral, theme.rpmGreen))
+        icons.add(Triple("OIL", false, theme.warningRed))
+        icons.add(Triple("MIL", hasDtc, theme.warningRed))
+        icons.add(Triple("HI", hiBeamOn, theme.accent2))
+        icons.add(Triple("◄", leftTurnBlinking, theme.rpmGreen))
+        icons.add(Triple("►", rightTurnBlinking, theme.rpmGreen))
+        val totalWidth = icons.size * iconSize * 1.2f
+        var startX = (w - totalWidth) / 2f
+        icons.forEach { (label, active, color) ->
+            val cx = startX + iconSize / 2f
+            pFill.color = if (active) color else theme.cardBg
+            canvas.drawCircle(cx, bottomY, iconSize * 0.45f, pFill)
+            pText.textSize = iconSize * 0.4f; pText.textAlign = Paint.Align.CENTER
+            pText.color = if (active) Color.BLACK else theme.textSecondary
+            canvas.drawText(label, cx, bottomY + iconSize * 0.15f, pText)
+            startX += iconSize * 1.2f
         }
     }
-
-    fun toggleFuelLevel() { fuelLevel = (fuelLevel + 0.1f).coerceAtMost(1f) }
-    fun setFuelLevel(v: Float) { fuelLevel = v.coerceIn(0f, 1f) }
 }

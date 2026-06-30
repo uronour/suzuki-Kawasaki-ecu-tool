@@ -6,6 +6,9 @@ static uint32_t g_lastPoll = 0;
 static volatile bool g_connected = false;
 static volatile bool g_dealerMode = false;
 
+static USART_TypeDef * const kline_uart[] = {USART1, USART2, USART3, UART4, UART5, USART6};
+#define KLINE_UART  kline_uart[KLINE_UART_PORT]
+
 void KLine_SetTXHigh(void)
 {
   GPIO_SetLevel(KLINE_TX_PIN, 1);
@@ -61,13 +64,13 @@ void KLine_SendBuf(const uint8_t *buf, uint16_t len)
 
 uint8_t KLine_ReadByte(void)
 {
-  while ((USART3->SR & USART_SR_RXNE) == 0);
-  return USART3->DR;
+  while ((KLINE_UART->SR & USART_SR_RXNE) == 0);
+  return KLINE_UART->DR;
 }
 
 uint16_t KLine_Available(void)
 {
-  return (USART3->SR & USART_SR_RXNE) ? 1 : 0;
+  return (KLINE_UART->SR & USART_SR_RXNE) ? 1 : 0;
 }
 
 uint16_t KLine_ReadBuf(uint8_t *buf, uint16_t maxLen, uint32_t timeoutMs)
@@ -77,7 +80,7 @@ uint16_t KLine_ReadBuf(uint8_t *buf, uint16_t maxLen, uint32_t timeoutMs)
   while (OS_GetTimeMs() - start < timeoutMs)
   {
     if (KLine_Available())
-      buf[idx++] = USART3->DR;
+      buf[idx++] = KLINE_UART->DR;
     if (idx >= maxLen)
       break;
     Delay_us(100);
@@ -112,4 +115,42 @@ void KLine_Reset(void)
   UART_DeConfig(KLINE_UART_PORT);
   Delay_ms(100);
   KLine_Init();
+}
+
+uint8_t KLine_LoopbackTest(void)
+{
+  // 1. Ensure Port is initialized
+  UART_Config(KLINE_UART_PORT, 9600, 0, false);
+
+  // 2. Clear any junk from the RX buffer
+  volatile uint8_t junk;
+  for(int i=0; i<10; i++) {
+    if (USART_GetFlagStatus(KLINE_UART, USART_FLAG_RXNE) != RESET)
+       junk = USART_ReceiveData(KLINE_UART);
+  }
+
+  uint8_t test_pattern[] = {0x55, 0xAA, 0x0F, 0xF0, 0x33, 0xCC, 0x12, 0xED};
+  uint8_t passed = 0;
+
+  for (uint8_t i = 0; i < sizeof(test_pattern); i++) {
+    // Wait for TX empty
+    while (USART_GetFlagStatus(KLINE_UART, USART_FLAG_TXE) == RESET);
+    USART_SendData(KLINE_UART, test_pattern[i]);
+
+    // Wait for RX with a generous timeout for 9600 baud
+    uint32_t timeout = 400000;
+    while (USART_GetFlagStatus(KLINE_UART, USART_FLAG_RXNE) == RESET) {
+      if (--timeout == 0) break;
+    }
+
+    if (timeout > 0) {
+      uint8_t rx = USART_ReceiveData(KLINE_UART);
+      if (rx == test_pattern[i]) passed++;
+    }
+  }
+
+  // 3. Restore ECU Baud rate
+  UART_Config(KLINE_UART_PORT, KLINE_BAUD, 0, false);
+
+  return passed;
 }

@@ -7,5 +7,6 @@ void Encoder_Init(void);
 void Encoder_Poll(void);
 int8_t Encoder_GetDir(void);
 uint8_t Encoder_GetPress(void);
+uint8_t Encoder_GetLongPress(void);
 
 #endif

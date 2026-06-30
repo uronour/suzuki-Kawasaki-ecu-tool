@@ -1,0 +1,85 @@
+[2026-06-30 01:44:33] Auto-Manifest Watcher started...
+[2026-06-30 01:44:33] Update Server Started: http://suzuki-ecu.servebeer.com:8080
+[2026-06-30 01:44:33] New APK detected! Manifest updated: 1.1.0630 (26063001)
+[2026-06-30 01:45:03] New APK detected! Manifest updated: 1.1.0630 (26063001)
+[2026-06-30 01:50:45] Auto-Manifest Watcher started...
+[2026-06-30 01:50:45] Update Server Started: http://suzuki-ecu.servebeer.com:80
+[2026-06-30 01:50:45] New APK detected! Manifest updated: 1.1.0630 (26063001)
+[2026-06-30 01:50:55] New APK detected! Manifest updated: 1.1.0630 (26063001)
+[2026-06-30 01:53:59] Request from 83.217.174.103: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:03:42] Request from 82.132.213.145: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:03:42] Request from 82.132.213.145: "GET /app-debug.apk HTTP/1.1" 200 -
+[2026-06-30 02:03:42] Request from 82.132.213.145: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:06:24] Request from 83.217.174.103: "GET /app-debug.apk HTTP/1.1" 200 -
+[2026-06-30 02:14:08] Auto-Manifest Watcher started...
+[2026-06-30 02:14:08] Update Server Started: http://suzuki-ecu.servebeer.com:80
+[2026-06-30 02:14:08] New APK detected! Manifest updated: 1.1.0630 (26063001)
+[2026-06-30 02:14:16] Request from 83.217.174.103: "GET /app-debug.apk HTTP/1.1" 200 -
+[2026-06-30 02:15:27] Request from 83.217.174.103: "GET /app-debug.apk HTTP/1.1" 200 -
+[2026-06-30 02:15:32] Request from 83.217.174.103: "GET /app-debug.apk HTTP/1.1" 200 -
+[2026-06-30 02:15:42] Request from 83.217.174.103: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:19:46] Auto-Manifest Watcher started...
+[2026-06-30 02:19:46] Update Server Started: http://suzuki-ecu.servebeer.com:80
+[2026-06-30 02:19:46] New APK detected! Manifest updated: 1.1.0630 (26063001)
+[2026-06-30 02:20:00] Request from 82.132.213.217: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:20:09] Request from 82.132.213.217: "GET /app-debug.apk HTTP/1.1" 200 -
+[2026-06-30 02:20:09] Streaming APK (6.02 MB) to 82.132.213.217...
+[2026-06-30 02:20:09] Finished streaming APK to 82.132.213.217
+[2026-06-30 02:20:09] Request from 82.132.213.217: "GET /app-debug.apk HTTP/1.1" 200 -
+[2026-06-30 02:20:09] Streaming APK (6.02 MB) to 82.132.213.217...
+[2026-06-30 02:20:09] Finished streaming APK to 82.132.213.217
+[2026-06-30 02:20:45] Request from 82.132.213.217: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:20:54] Request from 82.132.213.217: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:22:01] Request from 83.217.174.103: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:22:01] Request from 83.217.174.103: code 404, message File not found
+[2026-06-30 02:22:01] Request from 83.217.174.103: "GET /favicon.ico HTTP/1.1" 404 -
+[2026-06-30 02:23:11] Request from 82.132.213.217: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:23:16] Request from 82.132.213.217: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:23:38] Request from 82.132.213.217: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:23:42] Request from 82.132.213.217: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:24:27] Request from 83.217.174.103: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:24:35] Request from 83.217.174.103: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:24:36] Request from 83.217.174.103: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:24:40] Request from 83.217.174.103: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:26:26] New APK detected! Manifest updated: 1.1.0630 (26063002)
+[2026-06-30 02:26:30] Request from 83.217.174.103: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:26:31] Request from 83.217.174.103: "GET /app-debug.apk HTTP/1.1" 200 -
+[2026-06-30 02:26:31] Streaming APK (5.89 MB) to 83.217.174.103...
+[2026-06-30 02:26:32] Finished streaming APK to 83.217.174.103
+[2026-06-30 02:26:36] Request from 83.217.174.103: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:26:47] Request from 83.217.174.103: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:26:59] Request from 45.198.224.5: code 404, message File not found
+[2026-06-30 02:26:59] Request from 45.198.224.5: "GET /login HTTP/1.1" 404 -
+[2026-06-30 02:27:03] Request from 82.132.213.217: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:27:05] Request from 82.132.213.217: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:27:22] Request from 82.132.213.217: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:27:27] Request from 82.132.213.217: "GET /app-debug.apk HTTP/1.1" 200 -
+[2026-06-30 02:27:27] Streaming APK (5.89 MB) to 82.132.213.217...
+[2026-06-30 02:27:27] Finished streaming APK to 82.132.213.217
+[2026-06-30 02:28:36] Request from 83.217.174.103: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:30:36] Request from 83.217.174.103: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:32:26] New APK detected! Manifest updated: 1.1.0630 (26063002)
+[2026-06-30 02:32:36] Request from 83.217.174.103: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:34:36] Request from 83.217.174.103: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:36:36] Request from 83.217.174.103: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:36:44] Request from 82.132.213.217: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:36:44] Request from 82.132.213.217: "GET /app-debug.apk HTTP/1.1" 200 -
+[2026-06-30 02:36:44] Streaming APK (5.89 MB) to 82.132.213.217...
+[2026-06-30 02:36:44] Finished streaming APK to 82.132.213.217
+[2026-06-30 02:38:36] Request from 83.217.174.103: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:38:46] New APK detected! Manifest updated: 1.1.0630 (26063002)
+[2026-06-30 02:39:10] Request from 82.132.213.217: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:39:21] Request from 82.132.213.217: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:40:36] Request from 83.217.174.103: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:40:56] New APK detected! Manifest updated: 1.1.0630 (26063002)
+[2026-06-30 02:41:55] Request from 82.132.213.217: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:42:09] Request from 82.132.213.217: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:42:32] Request from 83.217.174.103: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:44:16] Request from 82.132.213.217: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:44:25] Request from 82.132.213.217: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:44:36] Request from 83.217.174.103: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:46:36] Request from 83.217.174.103: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:47:06] New APK detected! Manifest updated: 1.1.0630 (26063002)
+[2026-06-30 02:48:36] Request from 83.217.174.103: "GET / HTTP/1.1" 200 -
+[2026-06-30 02:48:44] Request from 82.132.213.217: "GET /version.json HTTP/1.1" 200 -
+[2026-06-30 02:48:52] Request from 82.132.213.217: "GET /version.json HTTP/1.1" 200 -

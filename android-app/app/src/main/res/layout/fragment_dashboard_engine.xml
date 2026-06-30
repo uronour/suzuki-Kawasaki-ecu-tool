@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <FrameLayout
+        android:id="@+id/dashContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <LinearLayout
+        android:id="@+id/editControls"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="16dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <Button
+            android:id="@+id/btnAddWidget"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Add Gauge"
+            android:backgroundTint="#4CAF50"
+            android:layout_marginBottom="4dp" />
+
+        <Button
+            android:id="@+id/btnSaveLoad"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Layout Slots"
+            android:backgroundTint="#2196F3"
+            android:layout_marginBottom="8dp" />
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/swSnap"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Snap"
+            android:textColor="#FFFFFF"
+            android:checked="true" />
+    </LinearLayout>
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabEdit"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="24dp"
+        android:src="@android:drawable/ic_menu_edit"
+        app:backgroundTint="#333333"
+        app:tint="#FFFFFF" />
+
+    <View
+        android:id="@+id/overlayFilter"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#AA000000"
+        android:visibility="gone" />
+
+</FrameLayout>

@@ -8,6 +8,17 @@ volatile SDS_State g_sdsState = SDS_IDLE;
 uint32_t g_sdsLastRxMs = 0;
 
 static uint8_t g_sdsKLinePort = _USART3;
+static ECU_Brand g_ecuBrand = BRAND_SUZUKI;
+
+void SDS_SetBrand(ECU_Brand brand)
+{
+  g_ecuBrand = brand;
+}
+
+ECU_Brand SDS_GetBrand(void)
+{
+  return g_ecuBrand;
+}
 
 void SDS_SetKLineUART(uint8_t port)
 {
@@ -31,10 +42,12 @@ static bool SDS_VerifyChecksum(const uint8_t *buf, uint16_t len)
 
 static void SDS_SendFrame(const uint8_t *pid, uint16_t pidLen)
 {
-  uint8_t frame[32];
+  uint8_t frame[64];
   uint8_t idx = 0;
+  uint8_t ecuAddr = (g_ecuBrand == BRAND_KAWASAKI) ? KDS_ECU_ADDR : SDS_ECU_ADDR;
+
   frame[idx++] = 0x80 | pidLen;
-  frame[idx++] = SDS_ECU_ADDR;
+  frame[idx++] = ecuAddr;
   frame[idx++] = SDS_TESTER_ADDR;
   for (uint16_t i = 0; i < pidLen; i++)
     frame[idx++] = pid[i];
@@ -74,21 +87,27 @@ bool SDS_Init(void)
     return false;
   }
 
-  if (resp[0] != 0x80 || resp[1] != SDS_TESTER_ADDR || resp[2] != SDS_ECU_ADDR || resp[4] != 0xC1)
+  // Verify response matches expected tester address (resp[1]) and ECU address (resp[2])
+  uint8_t expectedTarget = SDS_TESTER_ADDR;
+  uint8_t expectedSource = (g_ecuBrand == BRAND_KAWASAKI) ? KDS_ECU_ADDR : SDS_ECU_ADDR;
+
+  if (resp[0] != 0x80 || resp[1] != expectedTarget || resp[2] != expectedSource || resp[4] != 0xC1)
   {
     g_sdsState = SDS_ERROR;
     KLine_SetConnected(false);
     return false;
   }
 
-  uint8_t pidATP[] = { 0x83, 0x02 };
-  SDS_SendFrame(pidATP, sizeof(pidATP));
-
-  if (!SDS_WaitResponse(resp, SDS_RX_BUF_SIZE, SDS_TIMEOUT_MS))
-  {
-    g_sdsState = SDS_ERROR;
-    KLine_SetConnected(false);
-    return false;
+  if (g_ecuBrand == BRAND_KAWASAKI) {
+    // Kawasaki needs StartDiagnosticSession (0x10 0x80)
+    uint8_t pidDiag[] = { 0x10, 0x80 };
+    SDS_SendFrame(pidDiag, sizeof(pidDiag));
+    if (!SDS_WaitResponse(resp, SDS_RX_BUF_SIZE, SDS_TIMEOUT_MS)) return false;
+  } else {
+    // Suzuki needs AccessTimingParameter (0x83 0x02)
+    uint8_t pidATP[] = { 0x83, 0x02 };
+    SDS_SendFrame(pidATP, sizeof(pidATP));
+    if (!SDS_WaitResponse(resp, SDS_RX_BUF_SIZE, SDS_TIMEOUT_MS)) return false;
   }
 
   g_sdsState = SDS_ACTIVE;
@@ -102,18 +121,60 @@ void SDS_PollSensorData(void)
   if (g_sdsState != SDS_ACTIVE)
     return;
 
-  uint8_t pid[] = { 0x21, 0x08 };
-  SDS_SendFrame(pid, sizeof(pid));
+  if (g_ecuBrand == BRAND_KAWASAKI) {
+    // KDS PIDs for ZX10R 2004
+    // RPM: 0x21 0x09
+    uint8_t pidRpm[] = { 0x21, 0x09 };
+    SDS_SendFrame(pidRpm, sizeof(pidRpm));
+    uint8_t resp[SDS_RX_BUF_SIZE];
+    if (SDS_WaitResponse(resp, SDS_RX_BUF_SIZE, 200)) {
+        g_sdsData.rpm = resp[5] * 100; // Simplified parsing for now
+    }
 
-  uint8_t resp[SDS_RX_BUF_SIZE];
-  if (!SDS_WaitResponse(resp, SDS_RX_BUF_SIZE, SDS_TIMEOUT_MS))
-    return;
+    // Speed: 0x21 0x0C
+    uint8_t pidSpd[] = { 0x21, 0x0C };
+    SDS_SendFrame(pidSpd, sizeof(pidSpd));
+    if (SDS_WaitResponse(resp, SDS_RX_BUF_SIZE, 200)) {
+        g_sdsData.speed = resp[5] * 100;
+    }
 
-  g_sdsLastRxMs = OS_GetTimeMs();
-  SDS_Response sresp;
-  sresp.len = resp[3] + 4;
-  memcpy(sresp.data, resp, sresp.len);
-  SDS_ParseSensorData(&sresp);
+    // TPS: 0x21 0x04
+    uint8_t pidTps[] = { 0x21, 0x04 };
+    SDS_SendFrame(pidTps, sizeof(pidTps));
+    if (SDS_WaitResponse(resp, SDS_RX_BUF_SIZE, 200)) {
+        g_sdsData.throttlePos = resp[5];
+    }
+
+    // ECT: 0x21 0x06
+    uint8_t pidEct[] = { 0x21, 0x06 };
+    SDS_SendFrame(pidEct, sizeof(pidEct));
+    if (SDS_WaitResponse(resp, SDS_RX_BUF_SIZE, 200)) {
+        g_sdsData.coolantTemp = resp[5];
+    }
+
+    // Gear: 0x21 0x0B
+    uint8_t pidGear[] = { 0x21, 0x0B };
+    SDS_SendFrame(pidGear, sizeof(pidGear));
+    if (SDS_WaitResponse(resp, SDS_RX_BUF_SIZE, 200)) {
+        g_sdsData.gearPos = resp[5];
+    }
+
+    g_sdsLastRxMs = OS_GetTimeMs();
+  } else {
+    // Standard Suzuki SDS Poll
+    uint8_t pid[] = { 0x21, 0x08 };
+    SDS_SendFrame(pid, sizeof(pid));
+
+    uint8_t resp[SDS_RX_BUF_SIZE];
+    if (!SDS_WaitResponse(resp, SDS_RX_BUF_SIZE, SDS_TIMEOUT_MS))
+      return;
+
+    g_sdsLastRxMs = OS_GetTimeMs();
+    SDS_Response sresp;
+    sresp.len = resp[3] + 4;
+    memcpy(sresp.data, resp, sresp.len);
+    SDS_ParseSensorData(&sresp);
+  }
 }
 
 bool SDS_SendRequest(uint8_t requestId, uint8_t *payload, uint8_t len)

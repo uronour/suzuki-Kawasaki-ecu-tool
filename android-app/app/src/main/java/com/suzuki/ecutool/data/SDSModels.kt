@@ -1,20 +1,21 @@
 package com.suzuki.ecutool.data
 
 /**
- * SDS Protocol data model matching the firmware SDS_Data structure
+ * SDS Protocol data model matching the firmware SDS_Data structure.
+ * Values are already scaled to standard units by the firmware.
  */
 data class SDSData(
     val rpm: Int = 0,
-    val speed: Int = 0,              // km/h * 100
+    val speedKmh: Int = 0,           // km/h
     val coolantTemp: Int = 0,        // Celsius
     val intakeAirTemp: Int = 0,      // Celsius
     val throttlePos: Int = 0,        // percent 0-100
     val batteryVolt: Int = 0,        // tenths of V: 142 = 14.2V
-    val gearPos: Int = 0,
+    val gearPos: Int = 0,            // 0=N, 1-6
     val mapKpa: Int = 0,
     val o2Sensor: Int = 0,
     val stps: Int = 0,               // percent 0-100
-    val injectorPulse: Int = 0,      // ms * 10
+    val injectorPulse: Int = 0,      // raw pulse
     val ignitionTiming: Int = 0,     // degrees BTDC
     val iacStep: Int = 0,
     val baroKpa: Int = 0,
@@ -26,9 +27,10 @@ data class SDSData(
     val sidestandDown: Boolean = false
 ) {
     fun batteryVoltage(): Float = batteryVolt / 10f
-    fun speedKmh(): Float = speed / 100f
+    fun speedKmh(): Float = speedKmh.toFloat()
+    fun speedMph(): Float = speedKmh * 0.621371f
     fun injectorPulseMs(): Float = injectorPulse / 10f
-    fun injectorPWMs(index: Int): Float = injectorPW[index] / 10f
+    fun injectorPWMs(index: Int): Float = if (index in injectorPW.indices) injectorPW[index] / 10f else 0f
 }
 
 data class SDSEcuInfo(
@@ -42,7 +44,9 @@ data class SDSEcuInfo(
 data class DTC(
     val code: Int,
     val description: String = ""
-)
+) {
+    val displayCode: String get() = "C%02d".format(code)
+}
 
 sealed class SDSCommand {
     data class Status(val requestId: Int) : SDSCommand()

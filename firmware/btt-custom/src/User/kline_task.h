@@ -8,11 +8,11 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 
-#define KLINE_UART_PORT  _USART3
+#define KLINE_UART_PORT  _USART2
 #define KLINE_BAUD       10400
-#define KLINE_TX_PIN     PB10
-#define KLINE_RX_PIN     PB11
-#define KLINE_AF         GPIO_AF_USART3
+#define KLINE_TX_PIN     PA2
+#define KLINE_RX_PIN     PA3
+#define KLINE_AF         GPIO_AF_USART2
 
 #define KLINE_DEALER_GPIO_PORT  GPIOC
 #define KLINE_DEALER_GPIO_PIN   GPIO_Pin_0
@@ -32,6 +32,7 @@ bool KLine_GetDealerMode(void);
 bool KLine_IsConnected(void);
 void KLine_SetConnected(bool connected);
 void KLine_Reset(void);
+uint8_t KLine_LoopbackTest(void);
 
 #ifdef __cplusplus
 }

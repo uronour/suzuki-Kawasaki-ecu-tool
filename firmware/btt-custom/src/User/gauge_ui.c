@@ -338,159 +338,198 @@ static void DrawRotateSub(void)
   drawSubBack();
 }
 
-// ─── Main Draw Functions ───────────────────────────────────────
+// ─── RPM bar helper ────────────────────────────────────────────
 
-static void DrawMainData(void)
+static void DrawRpmBar(int16_t x, int16_t y, int16_t w, int16_t h, uint32_t rpm)
 {
-  uint16_t bg = RGB565(18, 18, 18);
-  uint16_t rpmCol = RGB565(0, 220, 80);
-  uint16_t speedCol = RGB565(0, 180, 255);
-  uint16_t valCol = RGB565(220, 220, 220);
-  uint16_t lblCol = RGB565(140, 140, 140);
-  uint16_t headerCol = RGB565(0, 180, 255);
+  uint16_t barBg = RGB565(15, 15, 20);
+  LCD_FillRect(x, y, x + w - 1, y + h - 1, barBg);
+  LCD_DrawRect(x, y, x + w - 1, y + h - 1, RGB565(40, 40, 50));
 
-  LCD_Fill(0, 0, g_lcdWidth - 1, g_lcdHeight - 1, bg);
+  if (rpm > 15500) rpm = 15500;
+  int fillH = (int)((uint64_t)rpm * h / 15500);
+  if (fillH < 0) fillH = 0;
 
-  GFX_DrawStringScaled(6, 4, "LIVE DATA", headerCol, bg, 2);
+  int fillY = y + h - fillH;
+  uint16_t barCol;
+  if (rpm < 8000)
+    barCol = RGB565(0, 220, 80);
+  else if (rpm < 12000)
+    barCol = RGB565(220, 200, 0);
+  else
+    barCol = RGB565(220, 40, 40);
 
+  LCD_FillRect(x + 2, fillY, x + w - 3, y + h - 2, barCol);
+}
+
+// ─── Info card helper ──────────────────────────────────────────
+
+static void DrawInfoCard(int16_t x, int16_t y, int16_t w, int16_t h,
+                          const char *label, const char *value,
+                          uint16_t labelCol, uint16_t valCol, uint16_t accent)
+{
+  LCD_FillRect(x, y, x + w - 1, y + h - 1, RGB565(18, 18, 25));
+  LCD_DrawHLine(x, x + w - 1, y, accent);
+  GFX_DrawStringScaled(x + 4, y + 4, label, labelCol, RGB565(18, 18, 25), 1);
+  GFX_DrawStringScaled(x + 4, y + 20, value, valCol, RGB565(18, 18, 25), 2);
+}
+
+// ─── Dashboard Draw ────────────────────────────────────────────
+
+static void DrawDashboardLandscape(void)
+{
+  uint16_t bg = RGB565(10, 10, 15);
+  LCD_Fill(0, 0, g_lcdWidth - 1, g_lcdHeight - 21, bg);
+
+  // Header
+  GFX_DrawStringScaled(6, 4, "DASHBOARD", RGB565(0, 180, 255), bg, 2);
   uint8_t connected = 1;
   #ifndef EMULATOR_BUILD
     connected = KLine_IsConnected();
   #endif
-  GFX_DrawStringScaled(200, 6, "K-Line:", lblCol, bg, 1);
-  GFX_DrawStringScaled(250, 6, connected ? "OK" : "NC", connected ? RGB565(0, 200, 80) : RGB565(200, 50, 50), bg, 1);
-
+  GFX_DrawStringScaled(180, 6, "K:", RGB565(140, 140, 140), bg, 1);
+  GFX_DrawStringScaled(200, 6, connected ? "OK" : "NC",
+    connected ? RGB565(0, 200, 80) : RGB565(200, 50, 50), bg, 1);
   char tmp[8];
   snprintf(tmp, sizeof(tmp), "%d/%d", g_currentPage + 1, GAUGE_PAGE_COUNT);
   GFX_DrawString(g_lcdWidth - 50, 6, tmp, RGB565(120, 120, 120), bg);
-  LCD_DrawHLine(6, g_lcdWidth - 6, 24, RGB565(40, 40, 40));
+  LCD_DrawHLine(6, g_lcdWidth - 6, 24, RGB565(30, 30, 40));
 
-  char buf[32];
-  snprintf(buf, sizeof(buf), "%lu rpm", (unsigned long)g_sdsData.rpm);
-  GFX_DrawStringCenterScaled(55, buf, rpmCol, bg, 5);
+  // RPM bar on left
+  DrawRpmBar(10, 30, 28, 200, g_sdsData.rpm);
+  // RPM label next to bar
+  GFX_DrawStringScaled(42, 34, "RPM", RGB565(100, 100, 120), bg, 1);
+  char rpmStr[12];
+  snprintf(rpmStr, sizeof(rpmStr), "%lu", (unsigned long)g_sdsData.rpm);
+  GFX_DrawStringScaled(42, 50, rpmStr, RGB565(0, 220, 80), bg, 2);
 
+  // Speed - large center area
   uint32_t speedKmh = g_sdsData.speed / 100;
-  GFX_DrawStringCenterScaled(145, "Speed", lblCol, bg, 1);
-  snprintf(buf, sizeof(buf), "%lu km/h", (unsigned long)speedKmh);
-  GFX_DrawStringCenterScaled(165, buf, speedCol, bg, 3);
+  char spdStr[12];
+  snprintf(spdStr, sizeof(spdStr), "%lu", (unsigned long)speedKmh);
+  int16_t spdX = 160;
+  GFX_DrawStringScaled(spdX, 60, spdStr, RGB565(0, 180, 255), bg, 5);
+  GFX_DrawStringScaled(spdX, 110, "km/h", RGB565(100, 120, 140), bg, 1);
 
-  uint16_t cardW = (g_lcdWidth - 60) / 3;
-  uint16_t cardY = 230;
-  uint16_t cardH = 55;
-  uint16_t cx[3] = { 15, 15 + cardW + 15, 15 + (cardW + 15) * 2 };
+  // Gear - large
+  char gearStrBuf[4];
+  snprintf(gearStrBuf, sizeof(gearStrBuf), "%s", gearStr[g_sdsData.gearPos > 6 ? 0 : g_sdsData.gearPos]);
+  GFX_DrawStringScaled(spdX + 90, 60, "Gear", RGB565(100, 100, 120), bg, 1);
+  GFX_DrawStringScaled(spdX + 90, 80, gearStrBuf, RGB565(200, 200, 80), bg, 4);
 
-  LCD_FillRect(cx[0], cardY, cx[0] + cardW, cardY + cardH, RGB565(25, 25, 35));
-  GFX_DrawStringScaled(cx[0] + 4, cardY + 2, "Coolant", RGB565(140, 140, 200), bg, 1);
-  snprintf(buf, sizeof(buf), "%lu°C", (unsigned long)g_sdsData.coolantTemp);
-  GFX_DrawStringScaled(cx[0] + 4, cardY + 20, buf, valCol, bg, 2);
+  // Quick stats row
+  int16_t qx = spdX;
+  int16_t qy = 140;
+  int16_t qw = (g_lcdWidth - spdX - 20) / 2;
+  char qbuf[16];
 
-  LCD_FillRect(cx[1], cardY, cx[1] + cardW, cardY + cardH, RGB565(25, 35, 25));
-  GFX_DrawStringScaled(cx[1] + 4, cardY + 2, "Gear", RGB565(140, 200, 140), bg, 1);
-  snprintf(buf, sizeof(buf), "%s", gearStr[g_sdsData.gearPos > 6 ? 0 : g_sdsData.gearPos]);
-  GFX_DrawStringScaled(cx[1] + 4, cardY + 20, buf, valCol, bg, 2);
+  snprintf(qbuf, sizeof(qbuf), "%lu C", (unsigned long)g_sdsData.coolantTemp);
+  DrawInfoCard(qx, qy, qw - 4, 42, "Coolant", qbuf, RGB565(140, 140, 200), RGB565(220, 220, 220), RGB565(60, 60, 140));
 
-  LCD_FillRect(cx[2], cardY, cx[2] + cardW, cardY + cardH, RGB565(35, 25, 25));
-  GFX_DrawStringScaled(cx[2] + 4, cardY + 2, "TPS", RGB565(200, 140, 140), bg, 1);
-  snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)g_sdsData.throttlePos);
-  GFX_DrawStringScaled(cx[2] + 4, cardY + 20, buf, valCol, bg, 2);
+  snprintf(qbuf, sizeof(qbuf), "%.1fV", (double)(g_sdsData.batteryVolt * 0.1f));
+  DrawInfoCard(qx + qw, qy, qw - 4, 42, "Battery", qbuf, RGB565(200, 200, 140), RGB565(220, 220, 220), RGB565(140, 140, 60));
 
-  uint16_t cardY2 = cardY + cardH + 8;
-  LCD_FillRect(cx[0], cardY2, cx[0] + cardW, cardY2 + cardH, RGB565(30, 30, 20));
-  GFX_DrawStringScaled(cx[0] + 4, cardY2 + 2, "Battery", RGB565(200, 200, 140), bg, 1);
-  snprintf(buf, sizeof(buf), "%.1fV", (double)(g_sdsData.batteryVolt * 0.1f));
-  GFX_DrawStringScaled(cx[0] + 4, cardY2 + 20, buf, valCol, bg, 2);
+  qy += 48;
+  snprintf(qbuf, sizeof(qbuf), "%lu%%", (unsigned long)g_sdsData.throttlePos);
+  DrawInfoCard(qx, qy, qw - 4, 42, "TPS", qbuf, RGB565(200, 140, 140), RGB565(220, 220, 220), RGB565(140, 60, 60));
 
-  LCD_FillRect(cx[1], cardY2, cx[1] + cardW, cardY2 + cardH, RGB565(25, 30, 30));
-  GFX_DrawStringScaled(cx[1] + 4, cardY2 + 2, "MAP", RGB565(140, 200, 200), bg, 1);
-  snprintf(buf, sizeof(buf), "%lu kPa", (unsigned long)g_sdsData.mapKpa);
-  GFX_DrawStringScaled(cx[1] + 4, cardY2 + 20, buf, valCol, bg, 2);
+  snprintf(qbuf, sizeof(qbuf), "%lu kPa", (unsigned long)g_sdsData.mapKpa);
+  DrawInfoCard(qx + qw, qy, qw - 4, 42, "MAP", qbuf, RGB565(140, 200, 200), RGB565(220, 220, 220), RGB565(60, 140, 140));
 
-  LCD_FillRect(cx[2], cardY2, cx[2] + cardW, cardY2 + cardH, RGB565(25, 25, 30));
-  GFX_DrawStringScaled(cx[2] + 4, cardY2 + 2, "IAT", RGB565(140, 140, 200), bg, 1);
-  snprintf(buf, sizeof(buf), "%lu°C", (unsigned long)g_sdsData.intakeAirTemp);
-  GFX_DrawStringScaled(cx[2] + 4, cardY2 + 20, buf, valCol, bg, 2);
+  // Bottom info cards row
+  int16_t cardY = 210;
+  int16_t cardW = (g_lcdWidth - 50) / 4;
+  int16_t cardH = 60;
 
-  uint16_t cardY3 = cardY2 + cardH + 8;
-  LCD_FillRect(cx[0], cardY3, cx[0] + cardW, cardY3 + cardH, RGB565(30, 25, 30));
-  GFX_DrawStringScaled(cx[0] + 4, cardY3 + 2, "Inj", RGB565(200, 140, 200), bg, 1);
-  snprintf(buf, sizeof(buf), "%lu ms", (unsigned long)g_sdsData.injectorPulse);
-  GFX_DrawStringScaled(cx[0] + 4, cardY3 + 20, buf, valCol, bg, 2);
+  snprintf(qbuf, sizeof(qbuf), "%lu C", (unsigned long)g_sdsData.intakeAirTemp);
+  DrawInfoCard(10, cardY, cardW, cardH, "IAT", qbuf, RGB565(140, 140, 200), RGB565(220, 220, 220), RGB565(80, 80, 160));
 
-  LCD_FillRect(cx[1], cardY3, cx[1] + cardW, cardY3 + cardH, RGB565(30, 30, 25));
-  GFX_DrawStringScaled(cx[1] + 4, cardY3 + 2, "Ign", RGB565(200, 200, 140), bg, 1);
-  snprintf(buf, sizeof(buf), "%lu deg", (unsigned long)g_sdsData.ignitionTiming);
-  GFX_DrawStringScaled(cx[1] + 4, cardY3 + 20, buf, valCol, bg, 2);
+  snprintf(qbuf, sizeof(qbuf), "%lu ms", (unsigned long)g_sdsData.injectorPulse);
+  DrawInfoCard(15 + cardW, cardY, cardW, cardH, "Inj", qbuf, RGB565(200, 140, 200), RGB565(220, 220, 220), RGB565(160, 60, 160));
 
-  LCD_FillRect(cx[2], cardY3, cx[2] + cardW, cardY3 + cardH, RGB565(25, 30, 30));
-  GFX_DrawStringScaled(cx[2] + 4, cardY3 + 2, "STPS", RGB565(140, 200, 200), bg, 1);
-  snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)g_sdsData.stps);
-  GFX_DrawStringScaled(cx[2] + 4, cardY3 + 20, buf, valCol, bg, 2);
+  snprintf(qbuf, sizeof(qbuf), "%lu deg", (unsigned long)g_sdsData.ignitionTiming);
+  DrawInfoCard(20 + cardW * 2, cardY, cardW, cardH, "Ign", qbuf, RGB565(200, 200, 140), RGB565(220, 220, 220), RGB565(160, 160, 60));
+
+  snprintf(qbuf, sizeof(qbuf), "%lu%%", (unsigned long)g_sdsData.stps);
+  DrawInfoCard(25 + cardW * 3, cardY, cardW, cardH, "STPS", qbuf, RGB565(140, 200, 200), RGB565(220, 220, 220), RGB565(60, 160, 160));
 
   for (int i = 0; i < SENSOR_COUNT; i++)
     g_sensors[i].lastVal = 0xFFFFFFFF;
 }
 
-static void DrawLiveData(void)
+static void DrawDashboardPortrait(void)
 {
-  if (g_portraitMode) { DrawMainData(); return; }
-
-  uint16_t bg = RGB565(18, 18, 18);
-  uint16_t lblCol = RGB565(140, 140, 140);
-  uint16_t valCol = RGB565(220, 220, 220);
-  uint16_t headerCol = RGB565(0, 180, 255);
-  uint16_t okCol = RGB565(0, 200, 80);
-  uint16_t offCol = RGB565(120, 120, 120);
-
+  uint16_t bg = RGB565(10, 10, 15);
   LCD_Fill(0, 0, g_lcdWidth - 1, g_lcdHeight - 21, bg);
 
-  GFX_DrawStringScaled(6, 4, "LIVE DATA", headerCol, bg, 2);
-
+  GFX_DrawStringScaled(6, 4, "DASHBOARD", RGB565(0, 180, 255), bg, 2);
   uint8_t connected = 1;
   #ifndef EMULATOR_BUILD
     connected = KLine_IsConnected();
   #endif
-  GFX_DrawStringScaled(200, 6, "K-Line:", lblCol, bg, 1);
-  GFX_DrawStringScaled(250, 6, connected ? "OK" : "NC", connected ? okCol : RGB565(200, 50, 50), bg, 1);
-
+  GFX_DrawStringScaled(180, 6, "K:", RGB565(140, 140, 140), bg, 1);
+  GFX_DrawStringScaled(200, 6, connected ? "OK" : "NC",
+    connected ? RGB565(0, 200, 80) : RGB565(200, 50, 50), bg, 1);
   char tmp[8];
   snprintf(tmp, sizeof(tmp), "%d/%d", g_currentPage + 1, GAUGE_PAGE_COUNT);
-  GFX_DrawString(g_lcdWidth - 50, 6, tmp, offCol, bg);
-  LCD_DrawHLine(6, g_lcdWidth - 6, 24, RGB565(40, 40, 40));
+  GFX_DrawString(g_lcdWidth - 50, 6, tmp, RGB565(120, 120, 120), bg);
+  LCD_DrawHLine(6, g_lcdWidth - 6, 24, RGB565(30, 30, 40));
 
-  int16_t row = 30;
-  char buf[32];
+  // RPM bar
+  DrawRpmBar(10, 30, 22, 200, g_sdsData.rpm);
+  char rpmStr[12];
+  snprintf(rpmStr, sizeof(rpmStr), "%lu", (unsigned long)g_sdsData.rpm);
+  GFX_DrawStringScaled(36, 34, "RPM", RGB565(100, 100, 120), bg, 1);
+  GFX_DrawStringScaled(36, 50, rpmStr, RGB565(0, 220, 80), bg, 2);
+
+  // Speed + Gear on right
+  uint32_t speedKmh = g_sdsData.speed / 100;
+  char spdStr[12];
+  snprintf(spdStr, sizeof(spdStr), "%lu", (unsigned long)speedKmh);
+  GFX_DrawStringScaled(140, 40, spdStr, RGB565(0, 180, 255), bg, 5);
+  GFX_DrawStringScaled(140, 95, "km/h", RGB565(100, 120, 140), bg, 1);
+
+  char gearStrBuf[4];
+  snprintf(gearStrBuf, sizeof(gearStrBuf), "%s", gearStr[g_sdsData.gearPos > 6 ? 0 : g_sdsData.gearPos]);
+  GFX_DrawStringScaled(230, 40, "Gear", RGB565(100, 100, 120), bg, 1);
+  GFX_DrawStringScaled(230, 60, gearStrBuf, RGB565(200, 200, 80), bg, 4);
+
+  // Info cards 2x3 grid
+  int cardW = (g_lcdWidth - 30) / 2;
+  int cardH = 52;
+  int cardX[2] = { 10, 15 + cardW };
+  int cardY = 150;
+
+  char qbuf[16];
+  snprintf(qbuf, sizeof(qbuf), "%lu C", (unsigned long)g_sdsData.coolantTemp);
+  DrawInfoCard(cardX[0], cardY, cardW, cardH, "Coolant", qbuf, RGB565(140, 140, 200), RGB565(220, 220, 220), RGB565(60, 60, 140));
+  snprintf(qbuf, sizeof(qbuf), "%.1fV", (double)(g_sdsData.batteryVolt * 0.1f));
+  DrawInfoCard(cardX[1], cardY, cardW, cardH, "Battery", qbuf, RGB565(200, 200, 140), RGB565(220, 220, 220), RGB565(140, 140, 60));
+
+  cardY += cardH + 6;
+  snprintf(qbuf, sizeof(qbuf), "%lu%%", (unsigned long)g_sdsData.throttlePos);
+  DrawInfoCard(cardX[0], cardY, cardW, cardH, "TPS", qbuf, RGB565(200, 140, 140), RGB565(220, 220, 220), RGB565(140, 60, 60));
+  snprintf(qbuf, sizeof(qbuf), "%lu kPa", (unsigned long)g_sdsData.mapKpa);
+  DrawInfoCard(cardX[1], cardY, cardW, cardH, "MAP", qbuf, RGB565(140, 200, 200), RGB565(220, 220, 220), RGB565(60, 140, 140));
+
+  cardY += cardH + 6;
+  snprintf(qbuf, sizeof(qbuf), "%lu C", (unsigned long)g_sdsData.intakeAirTemp);
+  DrawInfoCard(cardX[0], cardY, cardW, cardH, "IAT", qbuf, RGB565(140, 140, 200), RGB565(220, 220, 220), RGB565(80, 80, 160));
+  snprintf(qbuf, sizeof(qbuf), "%lu ms", (unsigned long)g_sdsData.injectorPulse);
+  DrawInfoCard(cardX[1], cardY, cardW, cardH, "Inj", qbuf, RGB565(200, 140, 200), RGB565(220, 220, 220), RGB565(160, 60, 160));
+
   for (int i = 0; i < SENSOR_COUNT; i++)
-  {
-    GFX_DrawString(COL_LABEL, row, g_sensors[i].name, lblCol, bg);
-    uint32_t v = sensor_val(i);
-    int16_t x = COL_LABEL + strlen(g_sensors[i].name) * FONT_STEP + 4;
-    LCD_DrawHLine(x, COL_VALUE - 4, row + FONT_H / 2, RGB565(35, 35, 35));
-    fmt_sensor(i, buf, sizeof(buf));
-    g_sensors[i].lastVal = v;
-    int16_t vw = strlen(buf) * FONT_STEP;
-    GFX_DrawString(COL_VALUE - vw, row, buf, valCol, bg);
-    row += FONT_H + 3;
-  }
+    g_sensors[i].lastVal = 0xFFFFFFFF;
 }
 
-static void UpdateMainData(void)
-{
-  uint16_t bg = RGB565(18, 18, 18);
-  uint16_t rpmCol = RGB565(0, 220, 80);
-  uint16_t speedCol = RGB565(0, 180, 255);
-  uint16_t valCol = RGB565(220, 220, 220);
+// ─── Dashboard Update ──────────────────────────────────────────
 
+static void UpdateDashboardPortrait(void)
+{
+  uint16_t bg = RGB565(10, 10, 15);
   static uint32_t lastRpm = 0;
   static uint32_t lastSpeed = 0;
-  static uint32_t lastCoolant = 0;
   static uint32_t lastGear = 0;
-  static uint32_t lastTps = 0;
-  static uint32_t lastBatt = 0;
-  static uint32_t lastMap = 0;
-  static uint32_t lastIat = 0;
-  static uint32_t lastInj = 0;
-  static uint32_t lastIgn = 0;
-  static uint32_t lastStps = 0;
   static uint8_t lastConn = 0xFF;
   static uint8_t firstRun = 1;
 
@@ -501,7 +540,7 @@ static void UpdateMainData(void)
 
   if (connected != lastConn || firstRun) {
     lastConn = connected;
-    GFX_DrawStringScaled(250, 6, connected ? "OK" : "NC",
+    GFX_DrawStringScaled(200, 6, connected ? "OK" : "NC",
       connected ? RGB565(0, 200, 80) : RGB565(200, 50, 50), bg, 1);
   }
 
@@ -511,126 +550,100 @@ static void UpdateMainData(void)
 
   if (g_sdsData.rpm != lastRpm || firstRun) {
     lastRpm = g_sdsData.rpm;
-    LCD_FillRect(10, 40, g_lcdWidth - 10, 130, bg);
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%lu rpm", (unsigned long)g_sdsData.rpm);
-    GFX_DrawStringCenterScaled(55, buf, rpmCol, bg, 5);
+    DrawRpmBar(10, 30, 22, 200, g_sdsData.rpm);
+    LCD_FillRect(36, 50, 100, 78, bg);
+    char rpmStr[12];
+    snprintf(rpmStr, sizeof(rpmStr), "%lu", (unsigned long)g_sdsData.rpm);
+    GFX_DrawStringScaled(36, 50, rpmStr, RGB565(0, 220, 80), bg, 2);
   }
 
   uint32_t speedKmh = g_sdsData.speed / 100;
   if (speedKmh != lastSpeed || firstRun) {
     lastSpeed = speedKmh;
-    LCD_FillRect(10, 135, g_lcdWidth - 10, 190, bg);
-    GFX_DrawStringCenterScaled(145, "Speed", RGB565(140, 140, 140), bg, 1);
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%lu km/h", (unsigned long)speedKmh);
-    GFX_DrawStringCenterScaled(165, buf, speedCol, bg, 3);
+    LCD_FillRect(140, 40, 80, 50, bg);
+    char spdStr[12];
+    snprintf(spdStr, sizeof(spdStr), "%lu", (unsigned long)speedKmh);
+    GFX_DrawStringScaled(140, 40, spdStr, RGB565(0, 180, 255), bg, 5);
   }
 
-  uint16_t cardW = (g_lcdWidth - 60) / 3;
-  uint16_t cardH = 55;
-  uint16_t cx[3] = { 15, 15 + cardW + 15, 15 + (cardW + 15) * 2 };
-
-  uint16_t cardY = 230;
-  char buf[32];
-
-  if (g_sdsData.coolantTemp != lastCoolant || firstRun) {
-    lastCoolant = g_sdsData.coolantTemp;
-    LCD_FillRect(cx[0] + 4, cardY + 18, cx[0] + cardW, cardY + cardH, bg);
-    snprintf(buf, sizeof(buf), "%lu°C", (unsigned long)g_sdsData.coolantTemp);
-    GFX_DrawStringScaled(cx[0] + 4, cardY + 20, buf, valCol, bg, 2);
-  }
   if (g_sdsData.gearPos != lastGear || firstRun) {
     lastGear = g_sdsData.gearPos;
-    LCD_FillRect(cx[1] + 4, cardY + 18, cx[1] + cardW, cardY + cardH, bg);
-    snprintf(buf, sizeof(buf), "%s", gearStr[g_sdsData.gearPos > 6 ? 0 : g_sdsData.gearPos]);
-    GFX_DrawStringScaled(cx[1] + 4, cardY + 20, buf, valCol, bg, 2);
-  }
-  if (g_sdsData.throttlePos != lastTps || firstRun) {
-    lastTps = g_sdsData.throttlePos;
-    LCD_FillRect(cx[2] + 4, cardY + 18, cx[2] + cardW, cardY + cardH, bg);
-    snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)g_sdsData.throttlePos);
-    GFX_DrawStringScaled(cx[2] + 4, cardY + 20, buf, valCol, bg, 2);
-  }
-
-  uint16_t cardY2 = cardY + 63;
-  if (g_sdsData.batteryVolt != lastBatt || firstRun) {
-    lastBatt = g_sdsData.batteryVolt;
-    LCD_FillRect(cx[0] + 4, cardY2 + 18, cx[0] + cardW, cardY2 + cardH, bg);
-    snprintf(buf, sizeof(buf), "%.1fV", (double)(g_sdsData.batteryVolt * 0.1f));
-    GFX_DrawStringScaled(cx[0] + 4, cardY2 + 20, buf, valCol, bg, 2);
-  }
-  if (g_sdsData.mapKpa != lastMap || firstRun) {
-    lastMap = g_sdsData.mapKpa;
-    LCD_FillRect(cx[1] + 4, cardY2 + 18, cx[1] + cardW, cardY2 + cardH, bg);
-    snprintf(buf, sizeof(buf), "%lu kPa", (unsigned long)g_sdsData.mapKpa);
-    GFX_DrawStringScaled(cx[1] + 4, cardY2 + 20, buf, valCol, bg, 2);
-  }
-  if (g_sdsData.intakeAirTemp != lastIat || firstRun) {
-    lastIat = g_sdsData.intakeAirTemp;
-    LCD_FillRect(cx[2] + 4, cardY2 + 18, cx[2] + cardW, cardY2 + cardH, bg);
-    snprintf(buf, sizeof(buf), "%lu°C", (unsigned long)g_sdsData.intakeAirTemp);
-    GFX_DrawStringScaled(cx[2] + 4, cardY2 + 20, buf, valCol, bg, 2);
-  }
-
-  uint16_t cardY3 = cardY2 + 63;
-  if (g_sdsData.injectorPulse != lastInj || firstRun) {
-    lastInj = g_sdsData.injectorPulse;
-    LCD_FillRect(cx[0] + 4, cardY3 + 18, cx[0] + cardW, cardY3 + cardH, bg);
-    snprintf(buf, sizeof(buf), "%lu ms", (unsigned long)g_sdsData.injectorPulse);
-    GFX_DrawStringScaled(cx[0] + 4, cardY3 + 20, buf, valCol, bg, 2);
-  }
-  if (g_sdsData.ignitionTiming != lastIgn || firstRun) {
-    lastIgn = g_sdsData.ignitionTiming;
-    LCD_FillRect(cx[1] + 4, cardY3 + 18, cx[1] + cardW, cardY3 + cardH, bg);
-    snprintf(buf, sizeof(buf), "%lu deg", (unsigned long)g_sdsData.ignitionTiming);
-    GFX_DrawStringScaled(cx[1] + 4, cardY3 + 20, buf, valCol, bg, 2);
-  }
-  if (g_sdsData.stps != lastStps || firstRun) {
-    lastStps = g_sdsData.stps;
-    LCD_FillRect(cx[2] + 4, cardY3 + 18, cx[2] + cardW, cardY3 + cardH, bg);
-    snprintf(buf, sizeof(buf), "%lu%%", (unsigned long)g_sdsData.stps);
-    GFX_DrawStringScaled(cx[2] + 4, cardY3 + 20, buf, valCol, bg, 2);
+    LCD_FillRect(230, 60, 60, 50, bg);
+    char gearStrBuf[4];
+    snprintf(gearStrBuf, sizeof(gearStrBuf), "%s", gearStr[g_sdsData.gearPos > 6 ? 0 : g_sdsData.gearPos]);
+    GFX_DrawStringScaled(230, 60, gearStrBuf, RGB565(200, 200, 80), bg, 4);
   }
 
   firstRun = 0;
 }
 
-static void UpdateLiveData(void)
+static void UpdateDashboardLandscape(void)
 {
-  if (g_portraitMode) { UpdateMainData(); return; }
-
-  uint16_t bg = RGB565(18, 18, 18);
-  uint16_t valCol = RGB565(220, 220, 220);
+  uint16_t bg = RGB565(10, 10, 15);
+  static uint32_t lastRpm = 0;
+  static uint32_t lastSpeed = 0;
+  static uint32_t lastGear = 0;
+  static uint8_t lastConn = 0xFF;
+  static uint8_t firstRun = 1;
 
   uint8_t connected = 1;
   #ifndef EMULATOR_BUILD
     connected = KLine_IsConnected();
   #endif
-  static uint8_t lastConn = 0xFF;
-  if (connected != lastConn) {
+
+  if (connected != lastConn || firstRun) {
     lastConn = connected;
-    GFX_DrawStringScaled(250, 6, connected ? "OK" : "NC", connected ? RGB565(0, 200, 80) : RGB565(200, 50, 50), bg, 1);
+    GFX_DrawStringScaled(200, 6, connected ? "OK" : "NC",
+      connected ? RGB565(0, 200, 80) : RGB565(200, 50, 50), bg, 1);
   }
 
   char tmp[8];
   snprintf(tmp, sizeof(tmp), "%d/%d", g_currentPage + 1, GAUGE_PAGE_COUNT);
   GFX_DrawString(g_lcdWidth - 50, 6, tmp, RGB565(120, 120, 120), bg);
 
-  int16_t row = 30;
-  char buf[32];
-  for (int i = 0; i < SENSOR_COUNT; i++)
-  {
-    uint32_t newVal = sensor_val(i);
-    if (newVal != g_sensors[i].lastVal)
-    {
-      g_sensors[i].lastVal = newVal;
-      fmt_sensor(i, buf, sizeof(buf));
-      int16_t vw = strlen(buf) * FONT_STEP;
-      GFX_DrawString(COL_VALUE - vw, row, buf, valCol, bg);
-    }
-    row += FONT_H + 3;
+  if (g_sdsData.rpm != lastRpm || firstRun) {
+    lastRpm = g_sdsData.rpm;
+    DrawRpmBar(10, 30, 28, 200, g_sdsData.rpm);
+    LCD_FillRect(42, 50, 90, 30, bg);
+    char rpmStr[12];
+    snprintf(rpmStr, sizeof(rpmStr), "%lu", (unsigned long)g_sdsData.rpm);
+    GFX_DrawStringScaled(42, 50, rpmStr, RGB565(0, 220, 80), bg, 2);
   }
+
+  uint32_t speedKmh = g_sdsData.speed / 100;
+  if (speedKmh != lastSpeed || firstRun) {
+    lastSpeed = speedKmh;
+    LCD_FillRect(160, 60, 100, 50, bg);
+    char spdStr[12];
+    snprintf(spdStr, sizeof(spdStr), "%lu", (unsigned long)speedKmh);
+    GFX_DrawStringScaled(160, 60, spdStr, RGB565(0, 180, 255), bg, 5);
+  }
+
+  if (g_sdsData.gearPos != lastGear || firstRun) {
+    lastGear = g_sdsData.gearPos;
+    LCD_FillRect(250, 80, 50, 50, bg);
+    char gearStrBuf[4];
+    snprintf(gearStrBuf, sizeof(gearStrBuf), "%s", gearStr[g_sdsData.gearPos > 6 ? 0 : g_sdsData.gearPos]);
+    GFX_DrawStringScaled(250, 80, gearStrBuf, RGB565(200, 200, 80), bg, 4);
+  }
+
+  firstRun = 0;
+}
+
+static void DrawLiveData(void)
+{
+  if (g_portraitMode)
+    DrawDashboardPortrait();
+  else
+    DrawDashboardLandscape();
+}
+
+static void UpdateLiveData(void)
+{
+  if (g_portraitMode)
+    UpdateDashboardPortrait();
+  else
+    UpdateDashboardLandscape();
 }
 
 static void DrawDiagnostics(void)

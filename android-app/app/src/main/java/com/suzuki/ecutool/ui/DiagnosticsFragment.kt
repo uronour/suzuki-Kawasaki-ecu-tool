@@ -18,7 +18,9 @@ class DiagnosticsFragment : Fragment() {
     private val viewModel: MainViewModel by activityViewModels()
     private lateinit var dtcList: RecyclerView
     private lateinit var btnReadDTC: Button
+    private lateinit var btnLoopbackTest: Button
     private lateinit var dtcCountText: TextView
+    private lateinit var loopbackResultText: TextView
     private var dtcAdapter: DTCAdapter? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -30,7 +32,9 @@ class DiagnosticsFragment : Fragment() {
 
         dtcList = view.findViewById(R.id.dtcList)
         btnReadDTC = view.findViewById(R.id.btnReadDTC)
+        btnLoopbackTest = view.findViewById(R.id.btnLoopbackTest)
         dtcCountText = view.findViewById(R.id.dtcCountText)
+        loopbackResultText = view.findViewById(R.id.loopbackResultText)
 
         dtcAdapter = DTCAdapter()
         dtcList.layoutManager = LinearLayoutManager(requireContext())
@@ -54,6 +58,25 @@ class DiagnosticsFragment : Fragment() {
         view.findViewById<Button>(R.id.btnClearDTC)?.setOnClickListener {
             viewModel.sendCommand("clear_dtc")
         }
+
+        btnLoopbackTest.setOnClickListener {
+            viewModel.runLoopbackTest("KLINE_LOOPBACK_" + System.currentTimeMillis() % 1000)
+        }
+
+        view.findViewById<Button>(R.id.btnPing)?.setOnClickListener {
+            viewModel.sendPing()
+        }
+
+        viewModel.loopbackResult.observe(viewLifecycleOwner) { result ->
+            loopbackResultText.text = "Loopback Result: $result"
+        }
+
+        viewModel.isLoopbackRunning.observe(viewLifecycleOwner) { running ->
+            btnLoopbackTest.isEnabled = !running
+            if (running) {
+                loopbackResultText.text = "Loopback Test: Running..."
+            }
+        }
     }
 }
 
@@ -74,8 +97,8 @@ class DTCAdapter : RecyclerView.Adapter<DTCAdapter.ViewHolder>() {
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val dtc = items[position]
-        holder.text1.text = "DTC ${dtc.code}"
-        holder.text2.text = dtc.description.ifEmpty { "No description" }
+        holder.text1.text = com.suzuki.ecutool.util.DTCUtils.getDisplayCode(dtc.code)
+        holder.text2.text = com.suzuki.ecutool.util.DTCUtils.getDescription(dtc.code)
     }
 
     override fun getItemCount(): Int = items.size

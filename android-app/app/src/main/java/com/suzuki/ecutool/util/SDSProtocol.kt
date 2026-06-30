@@ -13,6 +13,7 @@ object SDSProtocol {
     private const val CMD_STREAM_ON = "stream_on"
     private const val CMD_STREAM_OFF = "stream_off"
     private const val CMD_STOP = "stop"
+    private const val CMD_LOOPBACK = "loopback"
     private const val CMD_HELP = "help"
 
     fun encodeCommand(cmd: String, args: String = ""): ByteArray {
@@ -29,6 +30,7 @@ object SDSProtocol {
     fun encodeStreamStart(): ByteArray = encodeCommand(CMD_STREAM_ON)
     fun encodeStreamStop(): ByteArray = encodeCommand(CMD_STREAM_OFF)
     fun encodeStop(): ByteArray = encodeCommand(CMD_STOP)
+    fun encodeLoopback(data: String): ByteArray = encodeCommand(CMD_LOOPBACK, data)
 
     fun parseResponse(raw: String): ParsedResponse {
         val trimmed = raw.trim()
@@ -43,6 +45,7 @@ object SDSProtocol {
             "dtc" -> parseDTC(body)
             "info" -> parseInfo(body)
             "ping" -> ParsedResponse.Pong
+            "loopback", "kline_loopback" -> ParsedResponse.Loopback(body)
             "error" -> ParsedResponse.Error(body)
             "ok" -> ParsedResponse.Ok(body)
             "stream" -> parseStream(body)
@@ -58,7 +61,7 @@ object SDSProtocol {
         }
         return ParsedResponse.Status(
             rpm = pairs["rpm"]?.toIntOrNull() ?: 0,
-            speed = pairs["spd"]?.toIntOrNull() ?: 0,
+            speedKmh = pairs["spd"]?.toIntOrNull() ?: 0,
             coolantTemp = pairs["cool"]?.toIntOrNull() ?: 0,
             intakeAirTemp = pairs["iat"]?.toIntOrNull() ?: 0,
             throttlePos = pairs["tps"]?.toIntOrNull() ?: 0,
@@ -111,7 +114,7 @@ object SDSProtocol {
     fun sdsDataFromStatus(status: ParsedResponse.Status): SDSData {
         return SDSData(
             rpm = status.rpm,
-            speed = status.speed,
+            speedKmh = status.speedKmh,
             coolantTemp = status.coolantTemp,
             intakeAirTemp = status.intakeAirTemp,
             throttlePos = status.throttlePos,
@@ -135,7 +138,7 @@ object SDSProtocol {
 sealed class ParsedResponse {
     data class Status(
         val rpm: Int,
-        val speed: Int,
+        val speedKmh: Int,
         val coolantTemp: Int,
         val intakeAirTemp: Int,
         val throttlePos: Int,
@@ -161,6 +164,8 @@ sealed class ParsedResponse {
         val calOffset: Long,
         val calSize: Long
     ) : ParsedResponse()
+
+    data class Loopback(val data: String) : ParsedResponse()
 
     data class StreamData(val status: Status) : ParsedResponse()
     object Pong : ParsedResponse()

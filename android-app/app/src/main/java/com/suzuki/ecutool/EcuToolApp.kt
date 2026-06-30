@@ -11,13 +11,14 @@ import java.util.Date
 import java.util.Locale
 
 class EcuToolApp : Application() {
+
+    private val oldHandler = Thread.getDefaultUncaughtExceptionHandler()
+
     override fun onCreate() {
         super.onCreate()
-        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, ex ->
             try {
-                val dir = getExternalFilesDir(null) ?: filesDir
-                val f = File(dir, "crash_log.txt")
+                val f = File(filesDir, "crash_log.txt")
                 val sw = StringWriter()
                 sw.write("=== CRASH at ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())} ===\n")
                 sw.write("Thread: ${thread.name}\n")
@@ -27,7 +28,7 @@ class EcuToolApp : Application() {
                 FileWriter(f, true).use { it.write(sw.toString()) }
                 Log.e("EcuToolApp", "Crash logged to ${f.absolutePath}", ex)
             } catch (_: Exception) {}
-            defaultHandler?.uncaughtException(thread, ex)
+            oldHandler?.uncaughtException(thread, ex)
         }
     }
 }

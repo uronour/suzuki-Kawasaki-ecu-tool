@@ -1,0 +1,6 @@
+{
+  "versionCode": 2,
+  "versionName": "1.1.0",
+  "apkUrl": "http://YOUR_SERVER_ADDRESS/update/app-debug.apk",
+  "changelog": "Initial release with GSX-R Factory dashboard, OTA updates, WiFi network binding"
+}

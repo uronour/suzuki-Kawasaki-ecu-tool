@@ -12,7 +12,11 @@ static int8_t g_dir = 0;
 static uint32_t g_lastEncTime = 0;
 static uint32_t g_lastBtnTime = 0;
 static uint8_t g_press = 0;
+static uint8_t g_longPress = 0;
 static uint8_t g_lastBtnState = 1;
+
+#define ENC_DEBOUNCE_MS  3
+#define ENC_LONGPRESS_MS 1500
 
 static const int8_t encTable[16] = {
   0, 1, -1, 0,
@@ -47,6 +51,13 @@ uint8_t Encoder_GetPress(void)
   return p;
 }
 
+uint8_t Encoder_GetLongPress(void)
+{
+  uint8_t p = g_longPress;
+  g_longPress = 0;
+  return p;
+}
+
 void Encoder_Poll(void)
 {
   uint32_t now = OS_GetTimeMs();
@@ -56,29 +67,34 @@ void Encoder_Poll(void)
   uint8_t b = GPIO_GetLevel(ENC_B);
   uint8_t state = (a << 1) | b;
 
-  if (state != g_lastState)
+  if (state != g_lastState && (now - g_lastEncTime) >= ENC_DEBOUNCE_MS)
   {
     uint8_t idx = (g_lastState << 2) | state;
     int8_t delta = encTable[idx];
     if (delta != 0)
     {
       g_dir += delta;
-      printf("[ENC] Dir delta: %d, accum: %d\n", delta, g_dir);
     }
-    g_lastEncTime = OS_GetTimeMs();
+    g_lastEncTime = now;
     g_lastState = state;
   }
 
-  // Button polling with debouncing
+  // Button polling with debouncing and long-press detection
   uint8_t btn = GPIO_GetLevel(ENC_BTN);
-  if (btn != g_lastBtnState)
+  if (btn != g_lastBtnState && (now - g_lastBtnTime) >= ENC_DEBOUNCE_MS)
   {
     if (btn == 0)  // Button pressed (active low)
     {
-      printf("[ENC] Button pressed\n");
       g_press = 1;
+      g_lastBtnTime = now;
     }
-    g_lastBtnTime = OS_GetTimeMs();
     g_lastBtnState = btn;
+  }
+
+  // Long-press: button held down for ENC_LONGPRESS_MS
+  if (g_lastBtnState == 0 && (now - g_lastBtnTime) >= ENC_LONGPRESS_MS && !g_longPress)
+  {
+    g_longPress = 1;
+    g_press = 0;   // cancel short press
   }
 }

@@ -8,7 +8,16 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 
+typedef enum {
+  BRAND_SUZUKI,
+  BRAND_KAWASAKI
+} ECU_Brand;
+
+void SDS_SetBrand(ECU_Brand brand);
+ECU_Brand SDS_GetBrand(void);
+
 #define SDS_ECU_ADDR      0x12
+#define KDS_ECU_ADDR      0x11
 #define SDS_TESTER_ADDR   0xF1
 #define SDS_BAUD          10400
 #define SDS_KEEPALIVE_MS  900

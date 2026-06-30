@@ -1,5 +1,7 @@
 package com.suzuki.ecutool.ui
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -17,7 +19,11 @@ class AboutFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        view.findViewById<TextView>(R.id.aboutVersion).text =
-            getString(R.string.version)
+        view.findViewById<TextView>(R.id.aboutVersion).text = "Version ${MainActivity.BUILD_VERSION}"
+        
+        view.findViewById<TextView>(R.id.githubLink).setOnClickListener {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/uronour/suzuki-ecu-tool"))
+            startActivity(intent)
+        }
     }
 }

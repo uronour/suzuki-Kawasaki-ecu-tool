@@ -22,7 +22,9 @@ data class DashConfig(
     val showOilLight: Boolean = true,
     val showKmLarge: Boolean = true,
     val themeName: String = "Sport",
-    val unitKmh: Boolean = true
+    val layoutName: String = "Sport",
+    val unitKmh: Boolean = true,
+    val shiftRpm: Int = 12500
 )
 
 class DashConfigManager(context: Context) {
@@ -49,7 +51,9 @@ class DashConfigManager(context: Context) {
         showOilLight = prefs.getBool("oil", true),
         showKmLarge = prefs.getBool("km_large", true),
         themeName = prefs.getString("theme", "Sport") ?: "Sport",
-        unitKmh = prefs.getBool("unit_kmh", true)
+        layoutName = prefs.getString("layout", "Sport") ?: "Sport",
+        unitKmh = prefs.getBool("unit_kmh", true),
+        shiftRpm = prefs.getInt("shift_rpm", 12500)
     )
 
     fun save(config: DashConfig) {
@@ -72,12 +76,17 @@ class DashConfigManager(context: Context) {
             .putBool("oil", config.showOilLight)
             .putBool("km_large", config.showKmLarge)
             .putString("theme", config.themeName)
+            .putString("layout", config.layoutName)
             .putBool("unit_kmh", config.unitKmh)
+            .putInt("shift_rpm", config.shiftRpm)
             .apply()
     }
 
     fun setTheme(name: String) { prefs.edit().putString("theme", name).apply() }
     fun getThemeName(): String = prefs.getString("theme", "Sport") ?: "Sport"
+    
+    fun setLayout(name: String) { prefs.edit().putString("layout", name).apply() }
+    fun getLayoutName(): String = prefs.getString("layout", "Sport") ?: "Sport"
 
     private fun SharedPreferences.getBool(key: String, default: Boolean): Boolean =
         getBoolean(key, default)

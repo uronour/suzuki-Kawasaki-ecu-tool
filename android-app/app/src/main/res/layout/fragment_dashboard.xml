@@ -1,42 +1,113 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#1a1a2e">
+    android:background="@color/background">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center"
-        android:orientation="vertical">
+    <!-- RPM Bar (Top) -->
+    <com.suzuki.ecutool.ui.dashboard.widgets.RpmBarView
+        android:id="@+id/rpmBar"
+        android:layout_width="0dp"
+        android:layout_height="50dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/gaugeGuideline"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintGuide_percent="0.55" />
+
+    <!-- Center Gauges Container -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/gaugeContainer"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toBottomOf="@id/rpmBar"
+        app:layout_constraintBottom_toTopOf="@id/gaugeGuideline"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <TextView
+            android:id="@+id/speedoBig"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0"
+            android:textColor="@color/accent"
+            android:textSize="90sp"
+            android:textStyle="bold"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Suzuki ECU Tool"
-            android:textColor="#FFFFFF"
-            android:textSize="24sp"
-            android:textStyle="bold" />
+            android:text="km/h"
+            android:textColor="@color/text_secondary"
+            android:textSize="16sp"
+            app:layout_constraintTop_toBottomOf="@id/speedoBig"
+            app:layout_constraintStart_toStartOf="@id/speedoBig"
+            app:layout_constraintEnd_toEndOf="@id/speedoBig"
+            android:layout_marginTop="-12dp" />
 
-        <Button
-            android:id="@+id/btnConnectNow"
-            android:layout_width="200dp"
-            android:layout_height="52dp"
-            android:layout_marginTop="32dp"
-            android:text="Connect"
-            android:textSize="18sp"
+        <!-- Gear Indicator -->
+        <TextView
+            android:id="@+id/gearBig"
+            android:layout_width="70dp"
+            android:layout_height="70dp"
+            android:background="@drawable/gear_bg"
+            android:gravity="center"
+            android:text="N"
             android:textColor="#FFFFFF"
-            android:backgroundTint="#2196F3" />
+            android:textSize="40sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            android:layout_margin="12dp" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- Grid of Sensors (Scrollable) -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/sensorGrid"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_margin="4dp"
+        android:paddingBottom="60dp"
+        android:clipToPadding="false"
+        app:layout_constraintTop_toBottomOf="@id/gaugeGuideline"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <!-- Connection Overlay -->
+    <LinearLayout
+        android:id="@+id/connectOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#E6121212"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
 
         <TextView
             android:id="@+id/statusLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Not connected"
-            android:textColor="#9E9E9E"
-            android:textSize="14sp" />
+            android:text="Searching for ECU..."
+            android:textColor="#FFFFFF"
+            android:textSize="18sp" />
 
+        <Button
+            android:id="@+id/btnConnectNow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="CONNECT"
+            android:backgroundTint="@color/accent" />
     </LinearLayout>
 
-</FrameLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
