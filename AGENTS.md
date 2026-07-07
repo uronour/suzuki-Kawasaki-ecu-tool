@@ -199,7 +199,9 @@ KL_IDLE ──(dealer mode + trigger)──► KL_FAST_INIT_5BAUD
 - ✓ Bluetooth SPP active as `GSX-R1000_ECU`
 - ✓ Web dashboard serves real-time gauges + terminal log
 - ✓ LED status patterns for each handshake state
-- ✗ Full K-Line handshake test with ECU emulator pending
+- ✗ Full K-Line handshake test with ECU emulator pending (stuck at 5-baud init — dealer mode activation needed)
+- ✓ Dealer mode API works via `/api/dealer?action=enter` (query-param fallback)
+- ✓ Dealer mode API works via `POST /api/cmd?cmd=start_kline` (query-param fallback)
 
 ### Historical Bugs (Arduino → ESP32 migration)
 
@@ -208,6 +210,9 @@ KL_IDLE ──(dealer mode + trigger)──► KL_FAST_INIT_5BAUD
 3. **Dead `else if`**: Missing braces in ACTIVE handler made StopComms unreachable.
 4. **Timeout in KL_IDLE (ESP32)**: `klineCheckTimeout()` firing in IDLE state. Fixed: skip timeout check when `klineState == KL_IDLE`.
 5. **Bluetooth linker error (older PlatformIO)**: Fixed by updating `platform = espressif32 @ ^6.0.0`.
+6. **Spurious ISO9141_EN_PIN**: No enable pin exists on the ISO9141 Click board. Removed `ISO9141_EN_PIN=4` from code, platformio.ini, and docs. The L9637D INH pin is tied to VCC (always enabled).
+7. **Wrong D-pin labels on Wemos D1 Mini ESP32**: AGENTS.md and comments claimed GPIO16=D0, but actual board has D0=GPIO26, D4=GPIO16, D3=GPIO17. Fixed all pinout docs. Note: Wemos D1 Mini ESP32 D-pin layout differs from the ESP8266 version.
+8. **`hasArg("plain")` unreliable for JSON POST**: ESPAsyncWebServer `request->hasArg("plain")` returned false even with valid JSON body. Fixed both `handleDealerRequest` and `handleCommandRequest` to parse body unconditionally, with query-parameter fallback (`?action=enter` / `?cmd=start_kline`).
 
 ### Files
 
@@ -216,7 +221,8 @@ KL_IDLE ──(dealer mode + trigger)──► KL_FAST_INIT_5BAUD
 |------|----------|-------------|
 | `firmware/arduino_kline/arduino_kline.ino` | Arduino Uno | KWP2000 handshake (AltSoftSerial, legacy) |
 | `firmware/esp32_kline/src/main.cpp` | Wemos D1 Mini ESP32 | Production K-Line bridge + WiFi AP + BT + web UI |
-| `firmware/esp32_kline/platformio.ini` | PlatformIO | Build config, COM10, UART2 pins, BT enabled |
+| `firmware/esp32_kline/platformio.ini` | PlatformIO | Build config, COM10, UART2 pins, BT enabled, no EN pin |
+| `android/` | Android (Kotlin + Jetpack Compose) | BT SPP app scaffolded: dashboard gauges, K-Line terminal, controls |
 
 #### Python Tools
 | File | Purpose |
@@ -237,11 +243,10 @@ KL_IDLE ──(dealer mode + trigger)──► KL_FAST_INIT_5BAUD
 
 ### Next Steps
 
-1. Upload fixed firmware with `rxIdx >= 2` patch
-2. Run ReadDataById test at 10400 baud (`python tools/test_read_data.py`)
-3. Port handshake to ESP32-CAM with ISO 9141 Click hardware
-4. Build Windows app (WiFi/Bluetooth → ECU communication)
-5. Verify against real Suzuki GSX-R1000 K4 ECU
+1. Connect to ESP32 WiFi, hit `http://192.168.4.1/api/dealer?action=enter` to activate dealer mode
+2. ESP32 should auto-send 5-baud init within 2s → verify handshake reaches ACTIVE in emulator
+3. Run ReadDataById test at 10400 baud (`python tools/test_read_data.py`)  
+4. Verify against real Suzuki GSX-R1000 K4 ECU
+5. Build + test Android APK (`android/` — BT SPP app scaffolded)
 6. ECU flash read/write via K-Line bootloader protocol
 7. DTC lookup — Suzuki-specific codes
-8. Active control testing (actuator tests)
