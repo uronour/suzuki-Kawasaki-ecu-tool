@@ -65,7 +65,7 @@ Two development tracks:
 
 | Device | Role | Connection |
 |--------|------|------------|
-| **Wemos D1 Mini ESP32** (target) | Production K-Line bridge | UART2(GPIO16/17) → ISO9141 Click (L9637D) → ECU K-Line |
+ | **Wemos D1 Mini ESP32** (target) | Production K-Line bridge | UART2(GPIO16 D4 / GPIO17 D3) → ISO9141 Click (L9637D) → ECU K-Line |
 | **PC** | WiFi client + serial debug | COM10 (ESP32 debug 115200), WiFi `GSX-R1000_ECU` |
 | **Arduino Uno** (legacy test) | K-Line bridge (retired) | AltSoftSerial D8(D9 → USB-TTL) |
 
@@ -78,11 +78,13 @@ Two development tracks:
 
 | Signal | GPIO | Board Label | Function |
 |--------|------|-------------|----------|
-| K-Line RX | GPIO16 | D0 / RX2 | UART2 RX → ISO9141 Click TX |
+| K-Line RX | GPIO16 | D4 / RX2 | UART2 RX → ISO9141 Click TX |
 | K-Line TX | GPIO17 | D3 / TX2 | UART2 TX → ISO9141 Click RX |
-| ISO9141 EN | GPIO4  | D2 | ISO9141 Click enable (HIGH=active) |
 | Dealer Mode | GPIO12 | — | Input pullup (LOW=active) |
 | Built-in LED | GPIO2 | D4 | Status indicator (active-LOW) |
+| *(unused)* | GPIO26 | D0 | — |
+
+**Note**: Wemos D1 Mini ESP32 D-pin mapping: D0=GPIO26, D3=GPIO17, D4=GPIO16. Not the same as ESP8266 D1 Mini.
 
 ### Features
 - **WiFi AP**: `GSX-R1000_ECU`, password `suzuki2004`, IP `192.168.4.1`

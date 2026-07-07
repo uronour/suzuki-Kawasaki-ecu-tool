@@ -14,15 +14,12 @@
 
 // Pin definitions - board specific
 #if defined(BOARD_WEMOS_D1_MINI)
-    // Wemos D1 Mini ESP32: UART2 on GPIO16(RX)/GPIO17(TX) for K-Line
+    // Wemos D1 Mini ESP32: UART2 on GPIO16(D4/RX)/GPIO17(D3/TX) for K-Line
     #ifndef KLINE_RX_PIN
-    #define KLINE_RX_PIN 16              // U2RX (GPIO16)
+    #define KLINE_RX_PIN 16              // U2RX (GPIO16 / D4)
     #endif
     #ifndef KLINE_TX_PIN
-    #define KLINE_TX_PIN 17              // U2TX (GPIO17)
-    #endif
-    #ifndef ISO9141_EN_PIN
-    #define ISO9141_EN_PIN 4             // ISO9141 Click enable (GPIO4)
+    #define KLINE_TX_PIN 17              // U2TX (GPIO17 / D3)
     #endif
     #define LED_PIN 2                    // Built-in LED
     #define DEALER_PIN 12                // Dealer mode trigger
@@ -42,7 +39,6 @@
     #define DEALER_PIN 12                // Dealer mode trigger
     #define KLINE_RX_PIN 16              // ESP32 RX for K-Line (UART2)
     #define KLINE_TX_PIN 17              // ESP32 TX for K-Line (UART2)
-    #define ISO9141_EN_PIN 4             // ISO9141 Click enable
     #define DS18B20_PIN 12               // DS18B20 data pin
     #define KLINE_SERIAL Serial2         // Use UART2 (HardwareSerial(2))
 #endif
@@ -218,7 +214,6 @@ void setup(void) {
     Serial.print("Password: "); Serial.println(WiFi.psk());
     Serial.print("Dealer Mode Pin: GPIO"); Serial.println(DEALER_PIN);
     Serial.print("K-Line UART2 on GPIO"); Serial.print(KLINE_RX_PIN); Serial.print("/GPIO"); Serial.println(KLINE_TX_PIN);
-    Serial.print("ISO9141 EN: GPIO"); Serial.println(ISO9141_EN_PIN);
     Serial.print("K-Line Baudrate: "); Serial.println(ECU_BAUDRATE);
     Serial.println("Bluetooth Name: GSX-R1000_ECU");
     Serial.println("\nAvailable endpoints:");
@@ -357,10 +352,6 @@ String createJsonResponse() {
 void setupHardware() {
     pinMode(LED_PIN, OUTPUT);
     pinMode(DEALER_PIN, INPUT_PULLUP);
-#if defined(ISO9141_EN_PIN)
-    pinMode(ISO9141_EN_PIN, OUTPUT);
-    digitalWrite(ISO9141_EN_PIN, HIGH);  // Enable ISO9141 Click transceiver
-#endif
 
     Serial.begin(115200);
     delay(100);
@@ -378,7 +369,7 @@ void setupHardware() {
     Serial.println("Hardware initialized");
 #if defined(BOARD_WEMOS_D1_MINI)
     Serial.println("Board: Wemos D1 Mini ESP32");
-    Serial.printf("K-Line UART2 on GPIO%d(RX)/GPIO%d(TX) @ %d baud\n", KLINE_RX_PIN, KLINE_TX_PIN, ECU_BAUDRATE);
+    Serial.printf("K-Line UART2 on GPIO%d(D%d)/GPIO%d(D%d) @ %d baud\n", KLINE_RX_PIN, KLINE_RX_PIN == 16 ? 4 : 0, KLINE_TX_PIN, KLINE_TX_PIN == 17 ? 3 : 0, ECU_BAUDRATE);
 #elif defined(BOARD_ESP32CAM)
     Serial.println("Board: ESP32-CAM AI-Thinker");
     Serial.printf("K-Line UART1 on GPIO16(RX)/GPIO17(TX) @ %d baud\n", ECU_BAUDRATE);
@@ -882,28 +873,36 @@ void sendSystemStatus(AsyncWebServerRequest *request) {
 }
 
 void handleCommandRequest(AsyncWebServerRequest *request) {
-    JsonDocument doc;
-    // Read JSON body from request
-    if (request->hasArg("plain")) {
-        deserializeJson(doc, request->arg("plain"));
+    String cmd;
+    String body = request->arg("plain");
+    if (body.length() > 0) {
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, body);
+        if (!err && doc["cmd"].is<const char*>()) {
+            cmd = doc["cmd"].as<String>();
+        }
+    }
+    // Fallback: query parameter
+    if (cmd.length() == 0 && request->hasParam("cmd")) {
+        cmd = request->getParam("cmd")->value();
     }
 
     String response;
 
-    if (doc["cmd"] == "reset") {
+    if (cmd == "reset") {
         setupEcudata();
         response = "{\"status\": \"reset\"}";
-    } else if (doc["cmd"] == "start_kline") {
+    } else if (cmd == "start_kline") {
         if (ecuData.dealerModeActive) {
             klineTransitionState(KL_FAST_INIT_5BAUD);
             response = "{\"status\": \"kline_started\"}";
         } else {
             response = "{\"error\": \"dealer_mode_required\"}";
         }
-    } else if (doc["cmd"] == "calibrate") {
+    } else if (cmd == "calibrate") {
         ecuData.coolantTemp = 85;
         response = "{\"status\": \"calibrated\"}";
-    } else if (doc["cmd"] == "flash") {
+    } else if (cmd == "flash") {
         if (ecuData.dealerModeActive) {
             response = "{\"status\": \"flash_started\"}";
             delay(100);
@@ -919,17 +918,29 @@ void handleCommandRequest(AsyncWebServerRequest *request) {
 }
 
 void handleDealerRequest(AsyncWebServerRequest *request) {
-    JsonDocument doc;
-    // Read JSON body from request
-    if (request->hasArg("plain")) {
-        deserializeJson(doc, request->arg("plain"));
+    String action;
+    // Try JSON body first
+    String body = request->arg("plain");
+    if (body.length() > 0) {
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, body);
+        if (!err && doc["action"].is<const char*>()) {
+            action = doc["action"].as<String>();
+        }
+    }
+    // Fallback: query parameter
+    if (action.length() == 0 && request->hasParam("action")) {
+        action = request->getParam("action")->value();
     }
 
-    if (doc["action"] == "enter") {
+    if (action == "enter") {
         ecuData.dealerModeActive = true;
+        ecuData.dealerModeStart = millis();
+        Serial.println("DEALER MODE: Activated (API)");
         sendJsonResponse(request, "{\"status\": \"dealer_mode_entered\"}");
-    } else if (doc["action"] == "exit") {
+    } else if (action == "exit") {
         ecuData.dealerModeActive = false;
+        Serial.println("DEALER MODE: Released (API)");
         sendJsonResponse(request, "{\"status\": \"dealer_mode_exited\"}");
     } else {
         sendJsonResponse(request, "{\"error\": \"invalid_action\"}");
